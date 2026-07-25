@@ -1,0 +1,6 @@
+{
+  "name": "AstroBotany Marker Database & PlantCV Pipeline",
+  "description": "Database, automated marker detection agent, batch image annotator, and PlantCV/AstroRoot pipeline exporter for AstroBotany calibration scale markers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
