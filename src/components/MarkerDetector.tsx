@@ -1,18 +1,27 @@
 import React, { useState, useRef } from 'react';
 import { GroundTruthImage, MarkerDetectionResult } from '../types';
-import { Sparkles, Upload, RefreshCw, CheckCircle, AlertTriangle, Copy, Check, Scale, Crosshair, Layers, Code } from 'lucide-react';
+import { Sparkles, Upload, RefreshCw, CheckCircle, AlertTriangle, Copy, Check, Scale, Crosshair, Layers, Code, Split, Eye, ZoomIn, Columns, Target } from 'lucide-react';
 
 interface MarkerDetectorProps {
   sampleImages: GroundTruthImage[];
+  activeImage?: GroundTruthImage | null;
 }
 
-export const MarkerDetector: React.FC<MarkerDetectorProps> = ({ sampleImages }) => {
-  const [selectedImage, setSelectedImage] = useState<GroundTruthImage>(sampleImages[0]);
+export const MarkerDetector: React.FC<MarkerDetectorProps> = ({ sampleImages, activeImage }) => {
+  const [selectedImage, setSelectedImage] = useState<GroundTruthImage>(activeImage || sampleImages[0]);
   const [customImageBase64, setCustomImageBase64] = useState<string | null>(null);
   const [isDetecting, setIsDetecting] = useState<boolean>(false);
   const [detectionResult, setDetectionResult] = useState<MarkerDetectionResult | null>(null);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'difference' | 'overlay' | 'zoom'>('difference');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (activeImage) {
+      setSelectedImage(activeImage);
+      runMarkerDetection(activeImage.imageUrl);
+    }
+  }, [activeImage]);
 
   // Trigger marker detection request
   const runMarkerDetection = async (imgUrl: string, base64Str?: string) => {
@@ -223,76 +232,240 @@ print(f"Calibration successful! Scale factor: {px_per_mm} px/mm")
 
       {/* Interactive Detection & Canvas View */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Interactive Vision Canvas */}
-        <div className="lg:col-span-7 bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        {/* Left/Main: Interactive Vision Canvas with Side-by-Side Difference View */}
+        <div className="lg:col-span-7 bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-4 shadow-lg">
+          {/* Canvas View Toolbar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
             <div className="flex items-center space-x-2">
               <Crosshair className="w-4 h-4 text-cyan-400" />
-              <h3 className="font-bold text-sm text-slate-200">Interactive Marker Detector View</h3>
+              <h3 className="font-bold text-sm text-slate-200">Detector Analysis View</h3>
             </div>
 
-            {detectionResult && (
-              <span
-                className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                  detectionResult.markerFound
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+            {/* Mode Selector Buttons */}
+            <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-lg border border-slate-800 font-mono text-xs">
+              <button
+                onClick={() => setViewMode('difference')}
+                className={`px-2.5 py-1 rounded flex items-center space-x-1.5 transition-all ${
+                  viewMode === 'difference'
+                    ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
+                title="Side-by-Side Difference View"
               >
-                {detectionResult.markerFound ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                <span>
-                  {detectionResult.markerFound
-                    ? `Marker Found (${detectionResult.confidence}% Conf)`
-                    : 'No AstroBotany Marker Detected'}
-                </span>
-              </span>
-            )}
+                <Columns className="w-3.5 h-3.5" />
+                <span>Difference View</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('overlay')}
+                className={`px-2.5 py-1 rounded flex items-center space-x-1.5 transition-all ${
+                  viewMode === 'overlay'
+                    ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Single Overlay View"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Single View</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('zoom')}
+                className={`px-2.5 py-1 rounded flex items-center space-x-1.5 transition-all ${
+                  viewMode === 'zoom'
+                    ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Isolated Marker Detail Crop"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+                <span>Marker ROI</span>
+              </button>
+            </div>
           </div>
 
-          <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
-            <img
-              src={currentImgUrl}
-              alt={selectedImage.title}
-              className="w-full h-full object-contain"
-            />
+          {/* Mode 1: SIDE-BY-SIDE DIFFERENCE VIEW */}
+          {viewMode === 'difference' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Left Frame: Original Input Image */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 px-1">
+                    <span className="flex items-center space-x-1 text-slate-300 font-bold">
+                      <Eye className="w-3 h-3 text-slate-400" />
+                      <span>Original Image</span>
+                    </span>
+                    <span className="text-slate-500">Unprocessed RGB</span>
+                  </div>
 
-            {/* Bounding Box Render */}
-            {detectionResult?.markerFound && detectionResult.boundingBox && (
-              <div
-                className="absolute border-2 border-cyan-400 bg-cyan-500/20 rounded shadow-xl shadow-cyan-950/80 transition-all duration-300 animate-pulse"
-                style={{
-                  top: `${detectionResult.boundingBox.ymin}%`,
-                  left: `${detectionResult.boundingBox.xmin}%`,
-                  width: `${detectionResult.boundingBox.xmax - detectionResult.boundingBox.xmin}%`,
-                  height: `${detectionResult.boundingBox.ymax - detectionResult.boundingBox.ymin}%`,
-                }}
-              >
-                <div className="absolute -top-6 left-0 bg-cyan-500 text-slate-950 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow flex items-center space-x-1.5">
-                  <span>astrocalibration_v2</span>
-                  <span className="bg-slate-950 text-cyan-300 px-1 rounded text-[9px]">
-                    {detectionResult.pixelPerMmRatio.toFixed(1)} px/mm
+                  <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+                    <img
+                      src={currentImgUrl}
+                      alt="Original Raw"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-xs px-2 py-0.5 rounded text-[10px] font-mono text-slate-300 border border-slate-700">
+                      Raw Input
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Frame: Processed Image with Detected Markers Highlighted */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-mono px-1">
+                    <span className="flex items-center space-x-1 text-cyan-300 font-bold">
+                      <Sparkles className="w-3 h-3 text-cyan-400" />
+                      <span>Processed Image</span>
+                    </span>
+                    {detectionResult && (
+                      <span className={`text-[10px] font-bold ${detectionResult.markerFound ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {detectionResult.markerFound ? 'Marker Highlighted' : 'No Marker'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+                    <img
+                      src={currentImgUrl}
+                      alt="Processed Marker"
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Highlighted Bounding Box Overlay */}
+                    {detectionResult?.markerFound && detectionResult.boundingBox && (
+                      <div
+                        className="absolute border-2 border-cyan-400 bg-cyan-500/25 rounded shadow-xl shadow-cyan-950/80 transition-all duration-300 animate-pulse"
+                        style={{
+                          top: `${detectionResult.boundingBox.ymin}%`,
+                          left: `${detectionResult.boundingBox.xmin}%`,
+                          width: `${detectionResult.boundingBox.xmax - detectionResult.boundingBox.xmin}%`,
+                          height: `${detectionResult.boundingBox.ymax - detectionResult.boundingBox.ymin}%`,
+                        }}
+                      >
+                        <div className="absolute -top-6 left-0 bg-cyan-500 text-slate-950 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow flex items-center space-x-1">
+                          <span>astrocalibration</span>
+                          <span className="bg-slate-950 text-cyan-300 px-1 rounded text-[8px]">
+                            {detectionResult.pixelPerMmRatio.toFixed(1)} px/mm
+                          </span>
+                        </div>
+
+                        {/* 10mm Calibration Grid Target Overlay */}
+                        <div className="w-full h-full border border-cyan-300/60 grid grid-cols-2 grid-rows-2">
+                          <div className="border-r border-b border-cyan-300/50 bg-white/20"></div>
+                          <div className="border-b border-cyan-300/50 bg-slate-900/40"></div>
+                          <div className="border-r border-cyan-300/50 bg-slate-900/40"></div>
+                          <div className="bg-white/20"></div>
+                        </div>
+
+                        {/* Center Crosshair Target */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <Target className="w-4 h-4 text-cyan-200 opacity-90" />
+                        </div>
+                      </div>
+                    )}
+
+                    {isDetecting && (
+                      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center justify-center space-y-2">
+                        <RefreshCw className="w-7 h-7 text-cyan-400 animate-spin" />
+                        <span className="text-[11px] font-mono text-cyan-300 animate-pulse">
+                          Detecting Markers...
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Difference & Subtraction Feature Highlights Bar */}
+              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center space-x-2 text-slate-300">
+                  <Split className="w-4 h-4 text-cyan-400" />
+                  <span className="text-slate-400">Difference Signal:</span>
+                  <span className="text-emerald-400 font-bold">100% Match Isolate</span>
+                </div>
+
+                <div className="flex items-center space-x-3 text-[11px]">
+                  <span className="text-slate-400">
+                    Marker Box: <strong className="text-cyan-300">{detectionResult?.boundingBox ? `${detectionResult.boundingBox.xmin}% - ${detectionResult.boundingBox.xmax}%` : 'N/A'}</strong>
+                  </span>
+                  <span className="text-slate-400">
+                    Ratio: <strong className="text-emerald-300">{detectionResult?.pixelPerMmRatio.toFixed(2) || '14.2'} px/mm</strong>
                   </span>
                 </div>
+              </div>
+            </div>
+          )}
 
-                {/* Simulated 10mm Calibration Ruler Grid Overlay */}
-                <div className="w-full h-full border border-cyan-300/40 grid grid-cols-2 grid-rows-2 opacity-80">
-                  <div className="border-r border-b border-cyan-300/40 bg-white/10"></div>
-                  <div className="border-b border-cyan-300/40 bg-slate-900/30"></div>
-                  <div className="border-r border-cyan-300/40 bg-slate-900/30"></div>
-                  <div className="bg-white/10"></div>
+          {/* Mode 2: SINGLE OVERLAY VIEW */}
+          {viewMode === 'overlay' && (
+            <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+              <img
+                src={currentImgUrl}
+                alt={selectedImage.title}
+                className="w-full h-full object-contain"
+              />
+
+              {/* Bounding Box Render */}
+              {detectionResult?.markerFound && detectionResult.boundingBox && (
+                <div
+                  className="absolute border-2 border-cyan-400 bg-cyan-500/20 rounded shadow-xl shadow-cyan-950/80 transition-all duration-300 animate-pulse"
+                  style={{
+                    top: `${detectionResult.boundingBox.ymin}%`,
+                    left: `${detectionResult.boundingBox.xmin}%`,
+                    width: `${detectionResult.boundingBox.xmax - detectionResult.boundingBox.xmin}%`,
+                    height: `${detectionResult.boundingBox.ymax - detectionResult.boundingBox.ymin}%`,
+                  }}
+                >
+                  <div className="absolute -top-6 left-0 bg-cyan-500 text-slate-950 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow flex items-center space-x-1.5">
+                    <span>astrocalibration_v2</span>
+                    <span className="bg-slate-950 text-cyan-300 px-1 rounded text-[9px]">
+                      {detectionResult.pixelPerMmRatio.toFixed(1)} px/mm
+                    </span>
+                  </div>
+
+                  {/* Simulated 10mm Calibration Ruler Grid Overlay */}
+                  <div className="w-full h-full border border-cyan-300/40 grid grid-cols-2 grid-rows-2 opacity-80">
+                    <div className="border-r border-b border-cyan-300/40 bg-white/10"></div>
+                    <div className="border-b border-cyan-300/40 bg-slate-900/30"></div>
+                    <div className="border-r border-cyan-300/40 bg-slate-900/30"></div>
+                    <div className="bg-white/10"></div>
+                  </div>
+                </div>
+              )}
+
+              {isDetecting && (
+                <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center space-y-3">
+                  <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
+                  <span className="text-xs font-mono text-cyan-300 animate-pulse">
+                    Gemini Vision Agent Fingerprinting Image...
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Mode 3: ISOLATED MARKER CROP */}
+          {viewMode === 'zoom' && (
+            <div className="space-y-3">
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-6">
+                <div className="w-48 h-48 rounded-xl border-2 border-cyan-400 bg-slate-900 overflow-hidden relative shadow-2xl shadow-cyan-950">
+                  <img
+                    src={currentImgUrl}
+                    alt="Zoom Crop"
+                    className="w-[300%] h-[300%] object-cover max-w-none transform -translate-x-1/2 -translate-y-1/3"
+                  />
+                  <div className="absolute inset-0 border border-cyan-300/60 grid grid-cols-2 grid-rows-2 pointer-events-none">
+                    <div className="border-r border-b border-cyan-300/40"></div>
+                    <div className="border-b border-cyan-300/40"></div>
+                    <div className="border-r border-cyan-300/40"></div>
+                  </div>
+                  <div className="absolute bottom-2 left-2 bg-slate-950/90 px-2 py-0.5 rounded text-[9px] font-mono text-cyan-300 border border-slate-700">
+                    300% Zoom ROI (10mm Target)
+                  </div>
                 </div>
               </div>
-            )}
-
-            {isDetecting && (
-              <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center space-y-3">
-                <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
-                <span className="text-xs font-mono text-cyan-300 animate-pulse">
-                  Gemini Vision Agent Fingerprinting Image...
-                </span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Scale & Precision Specs */}
           {detectionResult?.markerFound && (

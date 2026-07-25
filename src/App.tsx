@@ -8,7 +8,7 @@ import { AstroRootAnthocyaninStudio } from './components/AstroRootAnthocyaninStu
 import { HuggingFaceExporter } from './components/HuggingFaceExporter';
 import { ExoLabTimelapseExplorer } from './components/ExoLabTimelapseExplorer';
 
-import { GroundTruthImage, MinedDatasetItem, BatchJobItem } from './types';
+import { GroundTruthImage, MinedDatasetItem, BatchJobItem, ExoLabFrame } from './types';
 import { INITIAL_GROUND_TRUTH } from './data/groundTruthData';
 import { INITIAL_MINED_DATASETS } from './data/minedDatasets';
 import {
@@ -33,6 +33,39 @@ export default function App() {
   const [geminiActive, setGeminiActive] = useState<boolean>(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeAnalysisImage, setActiveAnalysisImage] = useState<GroundTruthImage | null>(null);
+
+  const handleAnalyzeExoLabFrame = (frame: ExoLabFrame, targetTab: string = 'detection-agent') => {
+    const imageItem: GroundTruthImage = {
+      id: `gt-${frame.frameId}`,
+      title: `ExoLab-11 Flight Day ${frame.flightDay} (${frame.timestampIso.split('T')[0]})`,
+      species: frame.species,
+      category: 'positive',
+      imageUrl: frame.imageUrl,
+      description: `ExoLab-11 spaceflight time-lapse frame captured on Flight Day ${frame.flightDay} with AstroBotany ABC marker card.`,
+      lightingCondition: 'ExoLab Chamber Dual LED Spectrum',
+      angle: '0° Nadir Fixed Time-Lapse Camera',
+      occluded: false,
+      pixelPerMm: frame.pixelPerMm,
+      boundingBox: frame.boundingBox,
+      experimentId: 'ExoLab_11-ISS-2026',
+      tags: ['ExoLab-11', 'ABC Marker', `Flight Day ${frame.flightDay}`, 'Microgravity', 'Time-Lapse'],
+    };
+
+    setGroundTruthList((prev) => {
+      if (prev.some((img) => img.id === imageItem.id)) return prev;
+      return [imageItem, ...prev];
+    });
+
+    setActiveAnalysisImage(imageItem);
+    setActiveTab(targetTab);
+  };
+
+  const handleUpdateGroundTruth = (updatedImg: GroundTruthImage) => {
+    setGroundTruthList((prev) =>
+      prev.map((img) => (img.id === updatedImg.id ? updatedImg : img))
+    );
+  };
 
   // Initial batch queue items
   const [batchQueue, setBatchQueue] = useState<BatchJobItem[]>([
@@ -278,13 +311,19 @@ export default function App() {
               <GroundTruthLibrary
                 images={groundTruthList}
                 onAddImage={handleAddGroundTruth}
+                onUpdateImage={handleUpdateGroundTruth}
               />
             )}
 
-            {activeTab === 'exolab-11' && <ExoLabTimelapseExplorer />}
+            {activeTab === 'exolab-11' && (
+              <ExoLabTimelapseExplorer onAnalyzeFrame={handleAnalyzeExoLabFrame} />
+            )}
 
             {activeTab === 'detection-agent' && (
-              <MarkerDetector sampleImages={groundTruthList} />
+              <MarkerDetector
+                sampleImages={groundTruthList}
+                activeImage={activeAnalysisImage}
+              />
             )}
 
             {activeTab === 'data-mining' && (
@@ -300,7 +339,10 @@ export default function App() {
             )}
 
             {activeTab === 'phenotype-studio' && (
-              <AstroRootAnthocyaninStudio sampleImages={groundTruthList} />
+              <AstroRootAnthocyaninStudio
+                sampleImages={groundTruthList}
+                activeImage={activeAnalysisImage}
+              />
             )}
 
             {activeTab === 'hf-export' && <HuggingFaceExporter />}

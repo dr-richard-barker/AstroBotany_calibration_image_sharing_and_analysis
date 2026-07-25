@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { GroundTruthImage } from '../types';
-import { Database, Filter, Eye, Plus, CheckCircle, XCircle, Tag, Sun, Compass, Ruler, Download, ShieldCheck } from 'lucide-react';
+import { MarkerAnnotator } from './MarkerAnnotator';
+import { Database, Filter, Eye, Plus, CheckCircle, XCircle, Tag, Sun, Compass, Ruler, Download, ShieldCheck, Edit3 } from 'lucide-react';
 
 interface GroundTruthLibraryProps {
   images: GroundTruthImage[];
   onAddImage: (newImg: GroundTruthImage) => void;
+  onUpdateImage?: (updatedImg: GroundTruthImage) => void;
 }
 
-export const GroundTruthLibrary: React.FC<GroundTruthLibraryProps> = ({ images, onAddImage }) => {
+export const GroundTruthLibrary: React.FC<GroundTruthLibraryProps> = ({ images, onAddImage, onUpdateImage }) => {
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'positive' | 'negative'>('all');
   const [selectedImage, setSelectedImage] = useState<GroundTruthImage | null>(images[0] || null);
+  const [inspectorTab, setInspectorTab] = useState<'view' | 'annotate'>('view');
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Form state for adding new ground truth
@@ -261,117 +264,169 @@ export const GroundTruthLibrary: React.FC<GroundTruthLibraryProps> = ({ images, 
           </div>
         </div>
 
-        {/* Right Column: Selected Ground Truth Inspector */}
+        {/* Right Column: Selected Ground Truth Inspector or Interactive SVG Marker Annotator */}
         <div className="lg:col-span-5">
           {selectedImage ? (
-            <div className="bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-5 sticky top-24">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center space-x-2">
-                  <Eye className="w-4 h-4 text-emerald-400" />
-                  <h3 className="font-bold text-sm text-slate-200">Ground Truth Inspector</h3>
-                </div>
-                <span className="font-mono text-xs text-slate-500">{selectedImage.experimentId}</span>
-              </div>
-
-              {/* Large Image with Bounding Box Overlay */}
-              <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-950 border border-slate-800">
-                <img
-                  src={selectedImage.imageUrl}
-                  alt={selectedImage.title}
-                  className="w-full h-full object-cover"
-                />
-
-                {selectedImage.category === 'positive' && selectedImage.boundingBox && (
-                  <div
-                    className="absolute border-2 border-emerald-400 bg-emerald-500/20 rounded shadow-lg shadow-emerald-950/80"
-                    style={{
-                      top: `${selectedImage.boundingBox.ymin}%`,
-                      left: `${selectedImage.boundingBox.xmin}%`,
-                      width: `${selectedImage.boundingBox.xmax - selectedImage.boundingBox.xmin}%`,
-                      height: `${selectedImage.boundingBox.ymax - selectedImage.boundingBox.ymin}%`,
-                    }}
+            <div className="space-y-4 sticky top-20">
+              {/* Mode Selector Tabs */}
+              <div className="bg-slate-900 rounded-xl border border-slate-800 p-2 flex items-center justify-between">
+                <div className="flex space-x-1 w-full">
+                  <button
+                    onClick={() => setInspectorTab('view')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+                      inspectorTab === 'view'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
                   >
-                    <div className="absolute -top-6 left-0 bg-emerald-500 text-slate-950 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow flex items-center space-x-1">
-                      <span>astrocalibration</span>
-                      <span className="opacity-80">10mm</span>
-                    </div>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Ground Truth Inspector</span>
+                  </button>
 
-                    {/* Corner Target Marks */}
-                    <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-white"></div>
-                    <div className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-white"></div>
-                    <div className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-white"></div>
-                    <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-white"></div>
-                  </div>
-                )}
+                  <button
+                    onClick={() => setInspectorTab('annotate')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+                      inspectorTab === 'annotate'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>Interactive SVG Annotator</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Specs & Metadata */}
-              <div className="space-y-3 text-xs">
-                <div>
-                  <h4 className="font-semibold text-slate-200 text-sm">{selectedImage.title}</h4>
-                  <p className="text-slate-400 text-xs mt-0.5">{selectedImage.description}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono">
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Plant Species</span>
-                    <span className="text-slate-300 font-medium">{selectedImage.species}</span>
+              {/* View 1: Standard Ground Truth Inspector */}
+              {inspectorTab === 'view' ? (
+                <div className="bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-5">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <Eye className="w-4 h-4 text-emerald-400" />
+                      <h3 className="font-bold text-sm text-slate-200">Ground Truth Inspector</h3>
+                    </div>
+                    <span className="font-mono text-xs text-slate-500">{selectedImage.experimentId}</span>
                   </div>
 
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Scale Ratio</span>
-                    <span className="text-emerald-400 font-semibold">{selectedImage.pixelPerMm} px/mm</span>
+                  {/* Large Image with Bounding Box Overlay */}
+                  <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-950 border border-slate-800">
+                    <img
+                      src={selectedImage.imageUrl}
+                      alt={selectedImage.title}
+                      className="w-full h-full object-cover"
+                    />
+
+                    {selectedImage.category === 'positive' && selectedImage.boundingBox && (
+                      <div
+                        className="absolute border-2 border-emerald-400 bg-emerald-500/20 rounded shadow-lg shadow-emerald-950/80"
+                        style={{
+                          top: `${selectedImage.boundingBox.ymin}%`,
+                          left: `${selectedImage.boundingBox.xmin}%`,
+                          width: `${selectedImage.boundingBox.xmax - selectedImage.boundingBox.xmin}%`,
+                          height: `${selectedImage.boundingBox.ymax - selectedImage.boundingBox.ymin}%`,
+                        }}
+                      >
+                        <div className="absolute -top-6 left-0 bg-emerald-500 text-slate-950 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow flex items-center space-x-1">
+                          <span>astrocalibration</span>
+                          <span className="opacity-80">10mm</span>
+                        </div>
+
+                        {/* Corner Target Marks */}
+                        <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-white"></div>
+                        <div className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-white"></div>
+                        <div className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-white"></div>
+                        <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-white"></div>
+                      </div>
+                    )}
                   </div>
 
-                  <div>
-                    <span className="text-slate-500 text-[10px] block flex items-center space-x-1">
-                      <Sun className="w-3 h-3 text-amber-400" />
-                      <span>Lighting</span>
-                    </span>
-                    <span className="text-slate-300">{selectedImage.lightingCondition}</span>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500 text-[10px] block flex items-center space-x-1">
-                      <Compass className="w-3 h-3 text-cyan-400" />
-                      <span>Camera Angle</span>
-                    </span>
-                    <span className="text-slate-300">{selectedImage.angle}</span>
-                  </div>
-                </div>
-
-                {/* AstroBotany Sticker Marker Schema Card */}
-                {selectedImage.category === 'positive' && (
-                  <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-lg p-3 space-y-2">
-                    <div className="flex items-center justify-between text-emerald-400 font-semibold text-xs">
-                      <span>AstroBotany Marker Grid Features</span>
-                      <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.5 rounded">PlantCV Standard</span>
+                  {/* Specs & Metadata */}
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <h4 className="font-semibold text-slate-200 text-sm">{selectedImage.title}</h4>
+                      <p className="text-slate-400 text-xs mt-0.5">{selectedImage.description}</p>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-300">
-                      <span>• Dual-Color Checkerboard Grid</span>
-                      <span className="text-emerald-400 font-mono">10mm x 10mm</span>
-                    </div>
+                    <div className="grid grid-cols-2 gap-2 bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono">
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Plant Species</span>
+                        <span className="text-slate-300 font-medium">{selectedImage.species}</span>
+                      </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-300">
-                      <span>• Color Calibration Target Swatches</span>
-                      <div className="flex space-x-1">
-                        <span className="w-2.5 h-2.5 bg-white border border-slate-600 rounded-full"></span>
-                        <span className="w-2.5 h-2.5 bg-gray-500 rounded-full"></span>
-                        <span className="w-2.5 h-2.5 bg-black rounded-full"></span>
-                        <span className="w-2.5 h-2.5 bg-red-500 rounded-full"></span>
-                        <span className="w-2.5 h-2.5 bg-green-500 rounded-full"></span>
-                        <span className="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Scale Ratio</span>
+                        <span className="text-emerald-400 font-semibold">{selectedImage.pixelPerMm} px/mm</span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-500 text-[10px] block flex items-center space-x-1">
+                          <Sun className="w-3 h-3 text-amber-400" />
+                          <span>Lighting</span>
+                        </span>
+                        <span className="text-slate-300">{selectedImage.lightingCondition}</span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-500 text-[10px] block flex items-center space-x-1">
+                          <Compass className="w-3 h-3 text-cyan-400" />
+                          <span>Camera Angle</span>
+                        </span>
+                        <span className="text-slate-300">{selectedImage.angle}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-300">
-                      <span>• Sub-Pixel Concentric Alignment Ring</span>
-                      <span className="text-teal-400 font-mono">±0.05mm Precision</span>
-                    </div>
+                    {/* Launch Marker Annotator Button */}
+                    <button
+                      onClick={() => setInspectorTab('annotate')}
+                      className="w-full py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg font-semibold text-xs flex items-center justify-center space-x-2 transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4 text-emerald-400" />
+                      <span>Adjust / Verify Marker Bounding Box via SVG Annotator</span>
+                    </button>
+
+                    {/* AstroBotany Sticker Marker Schema Card */}
+                    {selectedImage.category === 'positive' && (
+                      <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between text-emerald-400 font-semibold text-xs">
+                          <span>AstroBotany Marker Grid Features</span>
+                          <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.5 rounded">PlantCV Standard</span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-300">
+                          <span>• Dual-Color Checkerboard Grid</span>
+                          <span className="text-emerald-400 font-mono">10mm x 10mm</span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-300">
+                          <span>• Color Calibration Target Swatches</span>
+                          <div className="flex space-x-1">
+                            <span className="w-2.5 h-2.5 bg-white border border-slate-600 rounded-full"></span>
+                            <span className="w-2.5 h-2.5 bg-gray-500 rounded-full"></span>
+                            <span className="w-2.5 h-2.5 bg-black rounded-full"></span>
+                            <span className="w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+                            <span className="w-2.5 h-2.5 bg-green-500 rounded-full"></span>
+                            <span className="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-300">
+                          <span>• Sub-Pixel Concentric Alignment Ring</span>
+                          <span className="text-teal-400 font-mono">±0.05mm Precision</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                /* View 2: SVG Marker Annotator Component */
+                <MarkerAnnotator
+                  image={selectedImage}
+                  onSaveBoundingBox={(updatedImg) => {
+                    onUpdateImage?.(updatedImg);
+                    setSelectedImage(updatedImg);
+                  }}
+                />
+              )}
             </div>
           ) : (
             <div className="bg-slate-900 rounded-xl border border-slate-800 p-8 text-center text-slate-500 text-xs">

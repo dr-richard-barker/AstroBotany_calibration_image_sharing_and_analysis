@@ -4,11 +4,19 @@ import { Cpu, Dna, Activity, Ruler, BarChart2, RefreshCw, Sliders, CheckCircle, 
 
 interface StudioProps {
   sampleImages: GroundTruthImage[];
+  activeImage?: GroundTruthImage | null;
 }
 
-export const AstroRootAnthocyaninStudio: React.FC<StudioProps> = ({ sampleImages }) => {
-  const [selectedImage, setSelectedImage] = useState<GroundTruthImage>(sampleImages[0]);
+export const AstroRootAnthocyaninStudio: React.FC<StudioProps> = ({ sampleImages, activeImage }) => {
+  const [selectedImage, setSelectedImage] = useState<GroundTruthImage>(activeImage || sampleImages[0]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  React.useEffect(() => {
+    if (activeImage) {
+      setSelectedImage(activeImage);
+      runPhenotypeAnalysis();
+    }
+  }, [activeImage]);
 
   const [rootMetrics, setRootMetrics] = useState<AstroRootMetrics>({
     primaryRootLengthMm: 34.8,

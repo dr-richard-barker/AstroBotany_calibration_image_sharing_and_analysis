@@ -34,7 +34,11 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
-export const ExoLabTimelapseExplorer: React.FC = () => {
+interface ExoLabTimelapseExplorerProps {
+  onAnalyzeFrame?: (frame: ExoLabFrame, targetTab?: string) => void;
+}
+
+export const ExoLabTimelapseExplorer: React.FC<ExoLabTimelapseExplorerProps> = ({ onAnalyzeFrame }) => {
   const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(6); // Start at Flight Day 7
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playSpeedMs, setPlaySpeedMs] = useState<number>(800);
@@ -229,12 +233,24 @@ if __name__ == "__main__":
           </div>
 
           {/* Interactive Image Frame with Bounding Box & Scale Ruler */}
-          <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+          <div
+            onClick={() => onAnalyzeFrame?.(activeFrame, 'detection-agent')}
+            className="relative aspect-square rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center cursor-pointer group shadow-inner"
+            title="Click image to load into AI Detection Viewer for analysis"
+          >
             <img
               src={activeFrame.imageUrl}
               alt={activeFrame.species}
-              className="w-full h-full object-cover transition-opacity duration-300"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
+
+            {/* Click to analyze hover overlay */}
+            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 pointer-events-none p-4">
+              <span className="px-3.5 py-2 bg-sky-600/90 text-white font-semibold text-xs rounded-lg shadow-xl backdrop-blur-sm flex items-center space-x-2 border border-sky-400/30">
+                <Sparkles className="w-4 h-4 text-sky-200" />
+                <span>Click to Load Frame into Analysis Viewer</span>
+              </span>
+            </div>
 
             {/* ABC Marker Bounding Box */}
             {showMask && activeFrame.markerFound && (
@@ -347,6 +363,55 @@ if __name__ == "__main__":
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Load Image into Analysis Viewer Buttons */}
+            <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={() => onAnalyzeFrame?.(activeFrame, 'detection-agent')}
+                className="flex-1 py-2.5 px-3 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg flex items-center justify-center space-x-2 transition-all shadow-md shadow-sky-900/40"
+              >
+                <Sparkles className="w-4 h-4 text-sky-200" />
+                <span>Load FD-{activeFrame.flightDay} Image into Detection Agent</span>
+              </button>
+
+              <button
+                onClick={() => onAnalyzeFrame?.(activeFrame, 'phenotype-studio')}
+                className="flex-1 py-2.5 px-3 bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs rounded-lg flex items-center justify-center space-x-2 transition-all shadow-md shadow-teal-900/40"
+              >
+                <Activity className="w-4 h-4 text-teal-200" />
+                <span>Load FD-{activeFrame.flightDay} Image into Phenotype Studio</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Time-Lapse Filmstrip Thumbnail Bar */}
+          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+            <div className="text-[11px] font-mono text-slate-400 flex items-center justify-between">
+              <span>Time-Lapse Series Filmstrip (Flight Days 1–14):</span>
+              <span className="text-slate-500 text-[10px]">Click any thumbnail to analyze</span>
+            </div>
+
+            <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-800">
+              {EXOLAB11_TIMELAPSE_SERIES.map((frame, idx) => (
+                <button
+                  key={frame.frameId}
+                  onClick={() => {
+                    setIsPlaying(false);
+                    setCurrentFrameIndex(idx);
+                  }}
+                  className={`relative shrink-0 w-16 h-16 rounded-lg overflow-hidden border transition-all ${
+                    idx === currentFrameIndex
+                      ? 'border-sky-400 ring-2 ring-sky-500/40 scale-105'
+                      : 'border-slate-800 opacity-60 hover:opacity-100 hover:border-slate-600'
+                  }`}
+                >
+                  <img src={frame.imageUrl} alt={`FD-${frame.flightDay}`} className="w-full h-full object-cover" />
+                  <span className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[9px] font-mono font-bold text-sky-300 text-center py-0.5">
+                    FD-{frame.flightDay}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
