@@ -1,119 +1,89 @@
-export interface AstroMarkerBoundingBox {
-  ymin: number; // 0-100% or 0-1 normalized
-  xmin: number;
-  ymax: number;
-  xmax: number;
-}
+// Domain model for the AstroBotany Calibration Image Database.
+// Every field here is either supplied by a contributor or measured on-device —
+// there are no synthetic / AI-invented values.
 
-export interface ColorTargetPatch {
+export interface Pt { x: number; y: number; }
+
+// The four corner ArUco fiducials of the Astrobotany calibration card, ordered
+// [TL, TR, BR, BL], in pixel coordinates of the stored (compressed) image.
+export type MarkerCorners = [Pt, Pt, Pt, Pt];
+
+// One sampled colour-reference chip after calibration.
+export interface ColorChip {
   name: string;
-  expectedHex: string;
-  measuredHex: string;
-  deltaE: number;
+  measured: [number, number, number]; // 0-255, as photographed
+  standard: [number, number, number]; // 0-255, Astrobotany reference
 }
 
-export interface MarkerDetectionResult {
-  id: string;
+// Result of running the client-side marker detector over an image.
+export interface MarkerAnalysis {
   markerFound: boolean;
-  confidence: number; // 0 - 100
-  boundingBox?: AstroMarkerBoundingBox;
-  markerType: 'astrocalibration_v1' | 'astrocalibration_v2_grid' | 'standard_checkerboard' | 'custom_botanical';
-  pixelPerMmRatio: number; // e.g. 12.5 px/mm
-  rotationAngleDeg: number;
-  lightingQuality: 'optimal' | 'shadowed' | 'overexposed' | 'uneven' | 'glare';
-  occlusionPercentage: number; // 0-100
-  colorCalibration: ColorTargetPatch[];
-  embeddingVector?: number[];
-  similarityScore?: number;
-  detectedAt: string;
+  cornersFound: number;         // 0-4, how many fiducials the detector located
+  corners: MarkerCorners | null;
+  pxPerCm: number | null;       // scale from the 4.3 cm marker span
+  pxPerMm: number | null;
+  rotationDeg: number | null;
+  colorResidualRms: number | null; // affine colour-fit residual (0 = perfect)
+  colorChips: ColorChip[];
+  detector: 'geometric' | 'aruco' | 'manual';
+  analyzedAt: string;           // ISO timestamp
 }
 
-export interface GroundTruthImage {
+// EXIF / device metadata extracted on-device before compression. Values are
+// only present when the source photo actually carried them.
+export interface CaptureMetadata {
+  make?: string;
+  model?: string;
+  lens?: string;
+  dateTimeOriginal?: string;    // ISO, from EXIF DateTimeOriginal
+  orientation?: number;
+  fNumber?: number;
+  exposureTime?: number;
+  iso?: number;
+  focalLength?: number;
+  gpsLatitude?: number;
+  gpsLongitude?: number;
+  gpsAltitude?: number;
+  software?: string;
+}
+
+// A stored image record as returned by the API.
+export interface ImageRecord {
   id: string;
   title: string;
-  species: string;
-  category: 'positive' | 'negative';
-  imageUrl: string;
-  thumbnailUrl?: string;
-  description: string;
-  lightingCondition: string;
-  angle: string;
-  occluded: boolean;
-  boundingBox?: AstroMarkerBoundingBox;
-  pixelPerMm: number;
-  experimentId: string;
+  species: string | null;
+  notes: string | null;
+  contributor: string | null;
+  source: string;               // 'upload' | 'camera' | 'google-photos' | 'seed'
+  sourceRef: string | null;     // e.g. original filename or Google Photos url
+  license: string | null;
   tags: string[];
+
+  filename: string;             // stored file, served at /uploads/<filename>
+  mime: string;
+  width: number;                // stored (compressed) dimensions
+  height: number;
+  origWidth: number | null;     // dimensions of the phone original
+  origHeight: number | null;
+  fileSize: number;             // bytes of the stored file
+  origFileSize: number | null;  // bytes of the phone original
+
+  capturedAt: string | null;    // ISO, from EXIF if present
+  uploadedAt: string;           // ISO, server receipt time
+
+  metadata: CaptureMetadata;
+  marker: MarkerAnalysis | null;
+
+  url: string;                  // /uploads/<filename>, filled in client-side
 }
 
-export interface PlantCVAnnotation {
-  imageId: string;
-  marker: {
-    present: boolean;
-    centerPx: [number, number];
-    scaleFactorPxPerMm: number;
-    colorCardMatrix?: string;
-  };
-  plantcvVersion: string;
-  codeSnippet: string;
+export interface DatabaseStats {
+  totalImages: number;
+  withMarker: number;
+  species: number;
+  contributors: number;
+  totalBytes: number;
+  lastUploadAt: string | null;
 }
 
-export interface AstroRootMetrics {
-  primaryRootLengthMm: number;
-  totalRootAreaMm2: number;
-  lateralRootCount: number;
-  rootBranchingDensity: number; // per mm
-  averageRootDiameterMm: number;
-}
-
-export interface AnthocyaninMetrics {
-  anthocyaninIndexPercent: number; // 0-100%
-  calibratedRgbMean: [number, number, number];
-  hsvHueAngle: number;
-  stressFactorScore: number; // 0-10
-}
-
-export interface MinedDatasetItem {
-  id: string;
-  title: string;
-  source: 'NASA OSDR' | 'bioRxiv' | 'Flickr Research' | 'Zenodo' | 'Hugging Face';
-  doiOrUrl: string;
-  imageUrl: string;
-  license: string;
-  species: string;
-  confidenceScore: number;
-  detectedMarkerBox: AstroMarkerBoundingBox;
-  minedDate: string;
-  verifiedByCommunity: boolean;
-  upvotes: number;
-}
-
-export interface BatchJobItem {
-  id: string;
-  fileName: string;
-  fileSize: string;
-  previewUrl: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
-  result?: MarkerDetectionResult;
-  plantMetrics?: {
-    root?: AstroRootMetrics;
-    anthocyanin?: AnthocyaninMetrics;
-  };
-}
-
-export interface ExoLabFrame {
-  frameId: string;
-  flightDay: number; // e.g. 1 to 14
-  timestampIso: string;
-  imageUrl: string;
-  species: string;
-  markerFound: boolean;
-  confidence: number;
-  pixelPerMm: number;
-  boundingBox: AstroMarkerBoundingBox;
-  canopyAreaMm2: number;
-  anthocyaninIndex: number; // %
-  rootLengthMm: number;
-  chamberTempC: number;
-  humidityPercent: number;
-}
-
+export const IMAGE_URL = (rec: { filename: string }) => `/uploads/${rec.filename}`;
