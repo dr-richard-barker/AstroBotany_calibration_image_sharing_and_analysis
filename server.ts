@@ -1,289 +1,245 @@
+// AstroBotany Calibration Image Database — backend.
+//
+// A small Express server backed by Node's built-in SQLite (see db.ts, no native
+// modules to compile). It stores contributed images + their device metadata +
+// marker analysis, and can ingest a shared Google Photos album. There is no
+// Google GenAI / Gemini dependency anywhere.
+
 import express from 'express';
-import path from 'path';
+import path from 'node:path';
+import fs from 'node:fs';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type } from '@google/genai';
+import exifr from 'exifr';
+import { db, UPLOAD_DIR, ROOT, rowToRecord, safeJson, storeImage, imageSize, type Row } from './db.ts';
+
+const PORT = Number(process.env.PORT) || 3000;
 
 const app = express();
-const PORT = 3000;
+app.use(express.json({ limit: '60mb' }));
+app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '1y', immutable: true }));
 
-app.use(express.json({ limit: '50mb' }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, engine: 'node:sqlite' }));
 
-// Helper to get initialized GenAI instance
-function getGenAI() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
+// --- list / search ---------------------------------------------------------
+app.get('/api/images', (req, res) => {
+  const q = String(req.query.q ?? '').trim().toLowerCase();
+  const marker = String(req.query.marker ?? 'all');
+  let rows = (db.prepare('SELECT * FROM images ORDER BY uploaded_at DESC').all() as Row[]).map(rowToRecord);
+  if (marker === 'yes') rows = rows.filter(r => r.marker?.markerFound);
+  if (marker === 'no') rows = rows.filter(r => !r.marker?.markerFound);
+  if (q) rows = rows.filter(r =>
+    [r.title, r.species, r.contributor, r.notes, ...(r.tags || [])].filter(Boolean).join(' ').toLowerCase().includes(q));
+  res.json(rows);
+});
+
+app.get('/api/images/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM images WHERE id = ?').get(req.params.id) as Row | undefined;
+  if (!row) return res.status(404).json({ error: 'not found' });
+  res.json(rowToRecord(row));
+});
+
+// --- create ----------------------------------------------------------------
+app.post('/api/images', (req, res) => {
+  try {
+    const b = req.body ?? {};
+    if (!b.imageBase64 || !b.title) return res.status(400).json({ error: 'imageBase64 and title are required' });
+    const buffer = Buffer.from(String(b.imageBase64).replace(/^data:[^,]+,/, ''), 'base64');
+    if (!buffer.length) return res.status(400).json({ error: 'empty image' });
+    const dims = imageSize(buffer);
+    const rec = storeImage({
+      buffer, mime: b.mime || 'image/jpeg',
+      title: b.title, species: b.species, notes: b.notes, contributor: b.contributor,
+      source: b.source || 'upload', sourceRef: b.sourceRef, license: b.license, tags: b.tags,
+      width: b.width || dims?.[0] || 0, height: b.height || dims?.[1] || 0,
+      origWidth: b.origWidth, origHeight: b.origHeight, origFileSize: b.origFileSize,
+      capturedAt: b.capturedAt, metadata: b.metadata, marker: b.marker,
+    });
+    res.status(201).json(rec);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+// --- update marker / delete ------------------------------------------------
+app.patch('/api/images/:id/marker', (req, res) => {
+  const row = db.prepare('SELECT id FROM images WHERE id = ?').get(req.params.id) as Row | undefined;
+  if (!row) return res.status(404).json({ error: 'not found' });
+  db.prepare('UPDATE images SET marker = ? WHERE id = ?')
+    .run(req.body?.marker ? JSON.stringify(req.body.marker) : null, req.params.id);
+  res.json(rowToRecord(db.prepare('SELECT * FROM images WHERE id = ?').get(req.params.id) as Row));
+});
+
+app.delete('/api/images/:id', (req, res) => {
+  const row = db.prepare('SELECT filename FROM images WHERE id = ?').get(req.params.id) as Row | undefined;
+  if (!row) return res.status(404).json({ error: 'not found' });
+  try { fs.unlinkSync(path.join(UPLOAD_DIR, row.filename)); } catch { /* already gone */ }
+  db.prepare('DELETE FROM images WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// --- stats -----------------------------------------------------------------
+app.get('/api/stats', (_req, res) => {
+  const rows = db.prepare('SELECT species, contributor, file_size, uploaded_at, marker FROM images').all() as Row[];
+  const species = new Set<string>(), contributors = new Set<string>();
+  let withMarker = 0, totalBytes = 0, lastUploadAt: string | null = null;
+  for (const r of rows) {
+    if (r.species) species.add(String(r.species).toLowerCase());
+    if (r.contributor) contributors.add(String(r.contributor).toLowerCase());
+    totalBytes += r.file_size || 0;
+    if (r.marker && safeJson<any>(r.marker, {})?.markerFound) withMarker++;
+    if (!lastUploadAt || r.uploaded_at > lastUploadAt) lastUploadAt = r.uploaded_at;
+  }
+  res.json({ totalImages: rows.length, withMarker, species: species.size, contributors: contributors.size, totalBytes, lastUploadAt });
+});
+
+// --- export ----------------------------------------------------------------
+app.get('/api/export/manifest.json', (_req, res) => {
+  const rows = (db.prepare('SELECT * FROM images ORDER BY uploaded_at DESC').all() as Row[]).map(rowToRecord);
+  res.setHeader('Content-Disposition', 'attachment; filename="astrobotany_manifest.json"');
+  res.json({ generatedAt: new Date().toISOString(), count: rows.length, images: rows });
+});
+
+app.get('/api/export/archive.zip', (_req, res) => {
+  const rows = (db.prepare('SELECT * FROM images ORDER BY uploaded_at DESC').all() as Row[]).map(rowToRecord);
+  const entries: { name: string; data: Buffer }[] = [
+    { name: 'manifest.json', data: Buffer.from(JSON.stringify({ generatedAt: new Date().toISOString(), count: rows.length, images: rows }, null, 2)) },
+  ];
+  for (const r of rows) {
+    try { entries.push({ name: `images/${r.filename}`, data: fs.readFileSync(path.join(UPLOAD_DIR, r.filename)) }); } catch { /* skip */ }
+  }
+  const zip = makeStoreZip(entries);
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="astrobotany_database.zip"');
+  res.send(zip);
+});
+
+// --- Google Photos shared-album ingestion ----------------------------------
+// A mobile User-Agent is required: legacy photos.app.goo.gl short links only
+// 302-redirect to the real photos.google.com/share/… album for a mobile client
+// (Firebase Dynamic Links no longer resolve them server-side for desktop UAs).
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
+app.post('/api/ingest/google-photos', async (req, res) => {
+  const albumUrl = String(req.body?.albumUrl ?? '').trim();
+  if (!/^https:\/\/(photos\.app\.goo\.gl|photos\.google\.com)\//.test(albumUrl)) {
+    return res.status(400).json({ error: 'Provide a public Google Photos shared-album link (photos.app.goo.gl/… or photos.google.com/share/…).' });
+  }
+  const limit = Math.min(Number(req.body?.limit) || 50, 200);
+  try {
+    const { title, photoBaseUrls } = await scrapeGooglePhotosAlbum(albumUrl);
+    const albumName = (title || '').split(' · ')[0].trim();
+    const imported: any[] = [];
+    const errors: string[] = [];
+    let skipped = 0;
+    for (const base of photoBaseUrls.slice(0, limit)) {
+      try {
+        const dl = await fetch(`${base}=w2048`, { headers: BROWSER_HEADERS });
+        if (!dl.ok) { skipped++; continue; }
+        const buffer = Buffer.from(await dl.arrayBuffer());
+        if (buffer.length < 1024) { skipped++; continue; }
+        const dims = imageSize(buffer);
+        const mime = buffer[0] === 0x89 ? 'image/png' : 'image/jpeg';
+        let meta: any = {}, capturedAt: string | null = null;
+        try {
+          const ex: any = await exifr.parse(buffer, { tiff: true, exif: true, gps: true }).catch(() => null);
+          if (ex) {
+            if (ex.Make) meta.make = String(ex.Make);
+            if (ex.Model) meta.model = String(ex.Model);
+            if (typeof ex.latitude === 'number') meta.gpsLatitude = ex.latitude;
+            if (typeof ex.longitude === 'number') meta.gpsLongitude = ex.longitude;
+            const dt = ex.DateTimeOriginal ?? ex.CreateDate;
+            if (dt instanceof Date) capturedAt = dt.toISOString();
+          }
+        } catch { /* no exif */ }
+        imported.push(storeImage({
+          buffer, mime,
+          title: albumName ? `${albumName} — photo ${imported.length + 1}` : `Google Photos import ${imported.length + 1}`,
+          species: req.body?.species, contributor: req.body?.contributor,
+          source: 'google-photos', sourceRef: albumUrl,
+          license: req.body?.license, tags: Array.isArray(req.body?.tags) ? req.body.tags : undefined,
+          width: dims?.[0] || 0, height: dims?.[1] || 0, origFileSize: buffer.length,
+          capturedAt, metadata: meta, marker: null,
+        }));
+      } catch (e) {
+        errors.push(e instanceof Error ? e.message : String(e));
+      }
+    }
+    res.json({ albumTitle: title, found: photoBaseUrls.length, imported, skipped, errors });
+  } catch (e) {
+    res.status(502).json({ error: `Could not read the album: ${e instanceof Error ? e.message : String(e)}` });
+  }
+});
+
+// Fetch a shared-album page and pull per-photo lh3 base URLs from the embedded
+// data. Heuristic (Google ships no public API for anonymous shared albums).
+export async function scrapeGooglePhotosAlbum(url: string): Promise<{ title: string | null; photoBaseUrls: string[] }> {
+  const r = await fetch(url, { headers: BROWSER_HEADERS, redirect: 'follow' });
+  if (!r.ok) throw new Error(`album fetch returned ${r.status}`);
+  const html = await r.text();
+
+  const titleMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i) || html.match(/<title>([^<]+)<\/title>/i);
+  const title = titleMatch ? (decodeEntities(titleMatch[1]).replace(/\s*-\s*Google Photos\s*$/i, '').trim() || null) : null;
+
+  const re = /https:\/\/lh3\.googleusercontent\.com\/[A-Za-z0-9_\-/]+/g;
+  const seen = new Set<string>();
+  const bases: string[] = [];
+  for (const m of html.match(re) || []) {
+    if (!m.includes('/pw/')) continue;      // shared-album photos live under /pw/
+    const base = m.replace(/=[^/]*$/, '');    // strip any trailing size suffix
+    if (seen.has(base)) continue;
+    seen.add(base); bases.push(base);
+  }
+  return { title, photoBaseUrls: bases };
 }
 
-// API Route: Detect AstroBotany Calibration Marker
-app.post('/api/detect-marker', async (req, res) => {
-  try {
-    const { imageBase64, imageId } = req.body;
+function decodeEntities(s: string): string {
+  return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
 
-    const ai = getGenAI();
-
-    // Default mock fallback response if Gemini key is absent or fallback requested
-    const generateFallback = () => {
-      const isPositive = !imageId?.includes('CTRL-NEG');
-      const boundingBox = isPositive
-        ? { ymin: 14, xmin: 68, ymax: 34, xmax: 88 }
-        : undefined;
-
-      return {
-        id: `det-${Date.now()}`,
-        markerFound: isPositive,
-        confidence: isPositive ? 97.8 : 4.2,
-        boundingBox,
-        markerType: 'astrocalibration_v2_grid',
-        pixelPerMmRatio: isPositive ? 14.2 : 0,
-        rotationAngleDeg: isPositive ? 3.5 : 0,
-        lightingQuality: 'optimal',
-        occlusionPercentage: isPositive ? 5 : 0,
-        colorCalibration: isPositive
-          ? [
-              { name: 'White 100%', expectedHex: '#FFFFFF', measuredHex: '#FAFAFB', deltaE: 0.8 },
-              { name: 'Neutral Gray 18%', expectedHex: '#808080', measuredHex: '#7E8183', deltaE: 1.1 },
-              { name: 'Black 0%', expectedHex: '#000000', measuredHex: '#0A0A0C', deltaE: 0.9 },
-              { name: 'Astro Red', expectedHex: '#E53E3E', measuredHex: '#E23B3A', deltaE: 1.3 },
-              { name: 'Astro Green', expectedHex: '#38A169', measuredHex: '#369F67', deltaE: 0.7 },
-              { name: 'Astro Blue', expectedHex: '#3182CE', measuredHex: '#3080C9', deltaE: 1.0 },
-            ]
-          : [],
-        embeddingVector: [0.82, -0.14, 0.45, 0.91, -0.32, 0.67, 0.12, -0.05],
-        detectedAt: new Date().toISOString(),
-      };
-    };
-
-    if (!ai || !imageBase64) {
-      return res.json(generateFallback());
-    }
-
-    // Strip data URL prefix if present
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64Data,
-            },
-          },
-          {
-            text: `Analyze this plant research image specifically for the presence of the AstroBotany / "astrocalibration" scale marker sticker (10mm grid, checkerboard/fiducial targets, color card squares).
-Determine:
-1. Is the marker present? (markerFound)
-2. Confidence score 0-100% (confidence)
-3. Normalized Bounding Box in percentage 0-100: ymin, xmin, ymax, xmax (boundingBox)
-4. Estimated pixels per millimeter scale ratio (pixelPerMmRatio)
-5. Rotation angle in degrees (rotationAngleDeg)
-6. Lighting condition (lightingQuality: 'optimal' | 'shadowed' | 'overexposed' | 'uneven' | 'glare')
-7. Occlusion percentage 0-100 (occlusionPercentage)
-8. Color target evaluation (colorCalibration)
-Return strictly valid JSON matching the schema.`,
-          },
-        ],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            markerFound: { type: Type.BOOLEAN },
-            confidence: { type: Type.NUMBER },
-            boundingBox: {
-              type: Type.OBJECT,
-              properties: {
-                ymin: { type: Type.NUMBER },
-                xmin: { type: Type.NUMBER },
-                ymax: { type: Type.NUMBER },
-                xmax: { type: Type.NUMBER },
-              },
-              required: ['ymin', 'xmin', 'ymax', 'xmax'],
-            },
-            pixelPerMmRatio: { type: Type.NUMBER },
-            rotationAngleDeg: { type: Type.NUMBER },
-            lightingQuality: { type: Type.STRING },
-            occlusionPercentage: { type: Type.NUMBER },
-            colorCalibration: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  expectedHex: { type: Type.STRING },
-                  measuredHex: { type: Type.STRING },
-                  deltaE: { type: Type.NUMBER },
-                },
-                required: ['name', 'expectedHex', 'measuredHex', 'deltaE'],
-              },
-            },
-          },
-          required: [
-            'markerFound',
-            'confidence',
-            'pixelPerMmRatio',
-            'rotationAngleDeg',
-            'lightingQuality',
-            'occlusionPercentage',
-          ],
-        },
-      },
-    });
-
-    if (!response.text) {
-      return res.json(generateFallback());
-    }
-
-    const parsed = JSON.parse(response.text);
-    return res.json({
-      id: `det-${Date.now()}`,
-      markerFound: parsed.markerFound,
-      confidence: Math.round(parsed.confidence * 10) / 10,
-      boundingBox: parsed.boundingBox || { ymin: 15, xmin: 70, ymax: 35, xmax: 88 },
-      markerType: 'astrocalibration_v2_grid',
-      pixelPerMmRatio: parsed.pixelPerMmRatio || 14.2,
-      rotationAngleDeg: parsed.rotationAngleDeg || 0,
-      lightingQuality: parsed.lightingQuality || 'optimal',
-      occlusionPercentage: parsed.occlusionPercentage || 0,
-      colorCalibration: parsed.colorCalibration || [],
-      embeddingVector: [0.85, -0.12, 0.49, 0.88, -0.29, 0.71, 0.15, -0.02],
-      detectedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Error in /api/detect-marker:', error);
-    res.status(500).json({
-      error: 'Marker detection process failed',
-      details: error instanceof Error ? error.message : String(error),
-    });
+// Minimal store-only ZIP writer (no dependency) for a bundle of compressed JPEGs.
+function crc32(buf: Buffer): number {
+  let c = ~0;
+  for (let i = 0; i < buf.length; i++) { c ^= buf[i]; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); }
+  return ~c >>> 0;
+}
+export function makeStoreZip(entries: { name: string; data: Buffer }[]): Buffer {
+  const locals: Buffer[] = [], centrals: Buffer[] = [];
+  let offset = 0;
+  for (const e of entries) {
+    const name = Buffer.from(e.name, 'utf8'), crc = crc32(e.data), size = e.data.length;
+    const local = Buffer.alloc(30 + name.length);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(0, 8); local.writeUInt16LE(0, 10); local.writeUInt16LE(0x21, 12);
+    local.writeUInt32LE(crc, 14); local.writeUInt32LE(size, 18); local.writeUInt32LE(size, 22);
+    local.writeUInt16LE(name.length, 26); local.writeUInt16LE(0, 28); name.copy(local, 30);
+    locals.push(local, e.data);
+    const central = Buffer.alloc(46 + name.length);
+    central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8); central.writeUInt16LE(0, 10); central.writeUInt16LE(0, 12); central.writeUInt16LE(0x21, 14);
+    central.writeUInt32LE(crc, 16); central.writeUInt32LE(size, 20); central.writeUInt32LE(size, 24);
+    central.writeUInt16LE(name.length, 28); central.writeUInt32LE(offset, 42); name.copy(central, 46);
+    centrals.push(central); offset += local.length + e.data.length;
   }
-});
+  const centralBuf = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralBuf.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, centralBuf, end]);
+}
 
-// API Route: AstroRoot & Anthocyanin Phenotyping Quantification
-app.post('/api/analyze-plant-phenotype', async (req, res) => {
-  try {
-    const { imageBase64, pixelPerMmRatio } = req.body;
-    const ai = getGenAI();
-
-    const fallbackMetrics = {
-      root: {
-        primaryRootLengthMm: 34.8,
-        totalRootAreaMm2: 82.4,
-        lateralRootCount: 14,
-        rootBranchingDensity: 0.40,
-        averageRootDiameterMm: 0.65,
-      },
-      anthocyanin: {
-        anthocyaninIndexPercent: 32.6,
-        calibratedRgbMean: [142, 68, 98] as [number, number, number],
-        hsvHueAngle: 332,
-        stressFactorScore: 4.2,
-      },
-    };
-
-    if (!ai || !imageBase64) {
-      return res.json(fallbackMetrics);
-    }
-
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: {
-        parts: [
-          {
-            inlineData: { mimeType: 'image/jpeg', data: base64Data },
-          },
-          {
-            text: `Given a scale calibration of ${pixelPerMmRatio || 14.2} px/mm from the AstroBotany astrocalibration marker, analyze the plant specimen in this image for:
-1. AstroRoot morphological traits: Primary root length in mm, total root surface area in mm2, lateral root count, branching density per mm, average root diameter in mm.
-2. Anthocyanin Pigment Quantification: Anthocyanin Index % (0-100%), calibrated RGB mean values, HSV hue angle in degrees, and overall physiological stress factor (0-10).
-Return valid JSON matching the requested structure.`,
-          },
-        ],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            primaryRootLengthMm: { type: Type.NUMBER },
-            totalRootAreaMm2: { type: Type.NUMBER },
-            lateralRootCount: { type: Type.INTEGER },
-            rootBranchingDensity: { type: Type.NUMBER },
-            averageRootDiameterMm: { type: Type.NUMBER },
-            anthocyaninIndexPercent: { type: Type.NUMBER },
-            calibratedRed: { type: Type.INTEGER },
-            calibratedGreen: { type: Type.INTEGER },
-            calibratedBlue: { type: Type.INTEGER },
-            hsvHueAngle: { type: Type.NUMBER },
-            stressFactorScore: { type: Type.NUMBER },
-          },
-          required: [
-            'primaryRootLengthMm',
-            'totalRootAreaMm2',
-            'lateralRootCount',
-            'anthocyaninIndexPercent',
-          ],
-        },
-      },
-    });
-
-    if (!response.text) return res.json(fallbackMetrics);
-
-    const parsed = JSON.parse(response.text);
-    return res.json({
-      root: {
-        primaryRootLengthMm: parsed.primaryRootLengthMm || 34.8,
-        totalRootAreaMm2: parsed.totalRootAreaMm2 || 82.4,
-        lateralRootCount: parsed.lateralRootCount || 14,
-        rootBranchingDensity: parsed.rootBranchingDensity || 0.40,
-        averageRootDiameterMm: parsed.averageRootDiameterMm || 0.65,
-      },
-      anthocyanin: {
-        anthocyaninIndexPercent: parsed.anthocyaninIndexPercent || 32.6,
-        calibratedRgbMean: [
-          parsed.calibratedRed || 142,
-          parsed.calibratedGreen || 68,
-          parsed.calibratedBlue || 98,
-        ],
-        hsvHueAngle: parsed.hsvHueAngle || 332,
-        stressFactorScore: parsed.stressFactorScore || 4.2,
-      },
-    });
-  } catch (error) {
-    console.error('Error in /api/analyze-plant-phenotype:', error);
-    res.status(500).json({ error: 'Phenotype analysis failed' });
-  }
-});
-
-async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+// --- static client (prod) / vite middleware (dev) --------------------------
+async function start() {
+  if (process.env.NODE_ENV === 'production') {
+    const dist = path.join(ROOT, 'dist');
+    app.use(express.static(dist));
+    app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+    app.use(vite.middlewares);
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening at http://0.0.0.0:${PORT}`);
-  });
+  app.listen(PORT, () => console.log(`AstroBotany DB listening on http://localhost:${PORT}`));
 }
-
-startServer();
+start();

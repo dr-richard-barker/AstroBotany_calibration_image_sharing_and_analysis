@@ -1,6 +1,4 @@
 {
-  "name": "AstroBotany Marker Database & PlantCV Pipeline",
-  "description": "Database, automated marker detection agent, batch image annotator, and PlantCV/AstroRoot pipeline exporter for AstroBotany calibration scale markers.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "AstroBotany Calibration Image Database",
+  "description": "Community database for sharing images of organisms and science alongside the AstroBotany calibration marker. On-device metadata capture and compression, client-side ArUco marker detection and colour calibration, Express + node:sqlite storage, and Google Photos album ingestion. No Google GenAI dependency."
 }
