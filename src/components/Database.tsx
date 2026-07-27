@@ -13,11 +13,12 @@ interface Props {
   showProject: boolean;
   onLoadMore: () => void;
   onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
+  onOpenTool: (id: string, imageUrl: string, ref: string) => void;
 }
 
 type Filter = 'all' | 'withPhoto' | 'analyzed';
 
-export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged }) => {
+export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged, onOpenTool }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [disabled, setDisabled] = useState<Set<string>>(new Set()); // projects toggled off
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -131,7 +132,7 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
 
             {selected && (
               <div style={{ position: 'sticky', top: 74 }}>
-                <MarkerInspector entry={selected} onMarkerChanged={onMarkerChanged} />
+                <MarkerInspector entry={selected} onMarkerChanged={onMarkerChanged} onOpenTool={onOpenTool} />
               </div>
             )}
           </div>

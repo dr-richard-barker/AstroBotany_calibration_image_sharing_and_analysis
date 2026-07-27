@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler } from 'lucide-react';
-import { TOOLS } from './tools';
+import { TOOLS, toolById } from './tools';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
   fetchEntriesPage, fetchAllPage, getActive, setActive as persistActive, getProjects,
@@ -11,8 +11,9 @@ import { Dashboard } from './components/Dashboard';
 import { Contribute } from './components/Contribute';
 import { ExportShare } from './components/ExportShare';
 import { About } from './components/About';
+import { ToolFrame } from './components/ToolFrame';
 
-type Tab = 'database' | 'dashboard' | 'contribute' | 'export' | 'about';
+type Tab = string;
 
 const NAV: { id: Tab; label: string; sub: string; icon: React.ComponentType<any> }[] = [
   { id: 'database', label: 'Database', sub: 'Browse & analyze', icon: DbIcon },
@@ -44,6 +45,7 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme);
+  const [toolLaunch, setToolLaunch] = useState<{ imageUrl?: string; ref?: string } | null>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -73,6 +75,12 @@ export default function App() {
   };
   const refreshProjects = () => setProjects(getProjects());
 
+  // Open a sibling tool as an in-app view (optionally pre-loaded with an image).
+  const openTool = (id: string, imageUrl?: string, ref?: string) => {
+    setToolLaunch(imageUrl ? { imageUrl, ref } : null);
+    setTab(id); setMenuOpen(false);
+  };
+
   const onMarkerChanged = (uuid: string, marker: MarkerAnalysis | null) =>
     setEntries(prev => prev.map(e => (e.uuid === uuid ? { ...e, marker } : e)));
 
@@ -84,6 +92,7 @@ export default function App() {
   }), [entries, totalAvailable]);
 
   const activeLabel = active === ALL ? 'All projects' : projectName(active);
+  const activeTool = toolById(tab);
 
   return (
     <div className={`app ${menuOpen ? 'menu-open' : ''}`}>
@@ -107,11 +116,12 @@ export default function App() {
         <div className="rail-tools">
           <div className="rail-tools-h">Analysis tools <Ruler size={11} /></div>
           {TOOLS.map(t => (
-            <a key={t.url} className="tool-link" href={t.url} target="_blank" rel="noreferrer">
+            <div key={t.id} className={`tool-link ${tab === t.id ? 'active' : ''}`} role="button" tabIndex={0}
+              onClick={() => openTool(t.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openTool(t.id); }}>
               <t.icon size={15} />
               <span>{t.name}<span className="sub">{t.sub}</span></span>
-              <ExternalLink size={12} className="ext" />
-            </a>
+              <a className="ext" href={`${t.url}?embed=1`} target="_blank" rel="noreferrer" title="Open full-screen" onClick={e => e.stopPropagation()}><ExternalLink size={12} /></a>
+            </div>
           ))}
         </div>
         <div className="rail-foot">
@@ -137,7 +147,9 @@ export default function App() {
           </button>
         </header>
 
-        <main className="content">
+        <main className="content" style={activeTool ? { padding: 0 } : undefined}>
+          {activeTool && <ToolFrame tool={activeTool} launch={toolLaunch} />}
+          {!activeTool && <>
           {isDemoProject(active) && tab === 'database' && (
             <div className="card pad" style={{ marginBottom: 14, borderColor: 'var(--accent)', display: 'flex', gap: 10, alignItems: 'center' }}>
               <AlertTriangle size={18} color="var(--accent)" />
@@ -160,7 +172,7 @@ export default function App() {
 
           {tab === 'database' ? (
             <Database entries={entries} query={query} loading={loading} hasNext={hasNext} showProject={active === ALL}
-              onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} />
+              onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} onOpenTool={openTool} />
           ) : tab === 'dashboard' ? (
             <Dashboard />
           ) : tab === 'contribute' ? (
@@ -170,6 +182,7 @@ export default function App() {
           ) : (
             <About />
           )}
+          </>}
         </main>
       </div>
     </div>
