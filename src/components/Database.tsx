@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { Database as DbIcon, CheckCircle2, Images, ImageIcon, Loader2, ChevronDown, FileText } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Database as DbIcon, CheckCircle2, Images, ImageIcon, Loader2, ChevronDown, FileText, LineChart } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis } from '../types';
 import { MarkerInspector } from './MarkerInspector';
 import { projectName } from '../api/epicollect';
+import { allResults } from '../lib/cose-results';
 
 interface Props {
   entries: Ec5Entry[];
@@ -20,6 +21,19 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
   const [filter, setFilter] = useState<Filter>('all');
   const [disabled, setDisabled] = useState<Set<string>>(new Set()); // projects toggled off
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Which images have tool results (ref -> count), from the shared store.
+  const [resultCounts, setResultCounts] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    const load = () => allResults().then(rs => {
+      const m = new Map<string, number>();
+      for (const r of rs) m.set(r.ref, (m.get(r.ref) || 0) + 1);
+      setResultCounts(m);
+    }).catch(() => {});
+    load();
+    window.addEventListener('focus', load); // refresh after returning from a tool tab
+    return () => window.removeEventListener('focus', load);
+  }, []);
 
   const projectsInView = useMemo(() => [...new Set(entries.map(e => e.project))], [entries]);
 
@@ -99,6 +113,11 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
                     <div className="corner-badge">
                       {e.marker?.markerFound ? <span className="badge pos"><CheckCircle2 size={11} /> marker</span> : e.marker ? <span className="badge neg">no marker</span> : null}
                     </div>
+                    {resultCounts.get(`${e.project}::${e.uuid}`) ? (
+                      <div style={{ position: 'absolute', top: 7, right: 7 }}>
+                        <span className="badge info" title="Tool analysis results attached"><LineChart size={11} /> {resultCounts.get(`${e.project}::${e.uuid}`)}</span>
+                      </div>
+                    ) : null}
                     {e.marker?.markerFound && e.marker.pxPerMm ? <div className="scale-badge">{e.marker.pxPerMm.toFixed(1)} px/mm</div> : null}
                   </div>
                   <div className="meta">
