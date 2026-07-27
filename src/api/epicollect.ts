@@ -17,9 +17,18 @@ export const ALL = '__all__';
 
 // A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
 // image folder (type 'github', slug prefixed "gh:", details in `gh`).
-export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github'; gh?: GhTarget; }
+export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github'; gh?: GhTarget; iss?: boolean; }
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
+
+// Images from an ISS payload (e.g. ExoLab): they carry no GPS, so the dashboard
+// can estimate an orbital ground-track position from each timestamp instead.
+const ISS_RE = /exolab|(^|[^a-z])iss([^a-z]|$)|spacestation|space[-_ ]?station/i;
+export function isIssSource(slug: string): boolean {
+  const p = getProjects().find(s => s.slug === slug);
+  if (p?.iss != null) return p.iss;
+  return ISS_RE.test(slug) || ISS_RE.test(p?.name || '');
+}
 
 // CoSE projects known to hold (or will hold) calibration images / experiment data.
 const BUILTIN: ProjectRef[] = [
@@ -55,11 +64,12 @@ export function addProject(slug: string, name?: string): ProjectRef[] {
   if (!getProjects().some(p => p.slug === s)) writeCustom([...readCustom(), { slug: s, name: name?.trim() || prettify(s) }]);
   return getProjects();
 }
-export function addGithubSource(gh: GhTarget, name: string): ProjectRef {
+export function addGithubSource(gh: GhTarget, name: string, iss?: boolean): ProjectRef {
   const slug = `gh:${gh.owner}/${gh.repo}/${gh.ref}/${gh.path}`;
   const existing = getProjects().find(p => p.slug === slug);
   if (existing) return existing;
-  const ref: ProjectRef = { slug, name, type: 'github', gh };
+  const auto = ISS_RE.test(name) || ISS_RE.test(slug);
+  const ref: ProjectRef = { slug, name, type: 'github', gh, iss: iss ?? auto };
   writeCustom([...readCustom(), ref]);
   return ref;
 }

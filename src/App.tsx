@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3 } from 'lucide-react';
+import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler } from 'lucide-react';
+import { TOOLS } from './tools';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
   fetchEntriesPage, fetchAllPage, getActive, setActive as persistActive, getProjects,
@@ -103,6 +104,16 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <div className="rail-tools">
+          <div className="rail-tools-h">Analysis tools <Ruler size={11} /></div>
+          {TOOLS.map(t => (
+            <a key={t.url} className="tool-link" href={t.url} target="_blank" rel="noreferrer">
+              <t.icon size={15} />
+              <span>{t.name}<span className="sub">{t.sub}</span></span>
+              <ExternalLink size={12} className="ext" />
+            </a>
+          ))}
+        </div>
         <div className="rail-foot">
           <div className="row" style={{ gap: 6 }}><Sprout size={14} color="var(--accent2)" /> {stats.total} loaded · {stats.analyzed} calibrated</div>
           <div style={{ marginTop: 6 }}>Viewing: <span className="mono">{activeLabel}</span></div>

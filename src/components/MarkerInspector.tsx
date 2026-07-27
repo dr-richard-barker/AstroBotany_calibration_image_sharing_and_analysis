@@ -4,6 +4,7 @@ import type { Ec5Entry, MarkerAnalysis, Pt } from '../types';
 import { urlToImageData } from '../lib/capture';
 import { analyzeMarker, analyzeFromQuad } from '../lib/detect';
 import { saveMarker, clearMarker } from '../api/epicollect';
+import { TOOLS, toolUrl } from '../tools';
 import { QuadAnnotator } from './QuadAnnotator';
 
 interface Props {
@@ -114,6 +115,11 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged }) => 
             {dirty && <button className="btn btn-teal btn-sm" onClick={save}><Save /> Save analysis</button>}
             {marker && !dirty && <button className="btn btn-sm btn-ghost" onClick={clear} style={{ color: 'var(--danger)' }}><Eraser /> Clear</button>}
             <span className="grow" />
+            {TOOLS.map(t => (
+              <a key={t.url} className="btn btn-sm btn-ghost" href={toolUrl(t.url, t.imgParam, entry.photoUrl!)} target="_blank" rel="noreferrer" title={`Open this image in ${t.name}`}>
+                <t.icon size={14} /> {t.name}
+              </a>
+            ))}
             <a className="btn btn-sm btn-ghost" href={entry.photoUrl} target="_blank" rel="noreferrer" title="Open full image"><ExternalLink /></a>
           </div>
         )}

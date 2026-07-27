@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Loader2, Images, ImageIcon, Sprout, MapPin, CalendarRange, FolderTree, CheckCircle2 } from 'lucide-react';
+import { BarChart3, Loader2, Images, ImageIcon, Sprout, MapPin, CalendarRange, FolderTree, CheckCircle2, Satellite } from 'lucide-react';
 import type { Ec5Entry } from '../types';
-import { fetchAllComplete, getProjects, projectName } from '../api/epicollect';
+import { fetchAllComplete, getProjects, projectName, isIssSource } from '../api/epicollect';
+import { issPosition, issTrack, ISS_INCLINATION } from '../lib/iss';
 
 // A palette derived from the CoSE accent pair, cycled for categorical series.
 const PALETTE = ['#3b6ea5', '#3fb6a8', '#6a8ec2', '#57c2b4', '#8aa9cf', '#7bccc0', '#b7791f', '#9c6ea0'];
@@ -25,6 +26,21 @@ export const Dashboard: React.FC = () => {
   const toggle = (slug: string) => setDisabled(p => { const n = new Set(p); n.has(slug) ? n.delete(slug) : n.add(slug); return n; });
 
   const agg = useMemo(() => computeAggregates(data), [data]);
+
+  // Estimated ISS positions for timestamped entries from ISS payload sources.
+  const [showIss, setShowIss] = useState(true);
+  const iss = useMemo(() => {
+    const entries = data.filter(e => isIssSource(e.project) && e.createdAt);
+    const points = entries.map(e => {
+      const t = Date.parse(e.createdAt) / 1000;
+      const p = issPosition(t);
+      return { lat: p.lat, lng: p.lng, label: e.title, project: e.project };
+    });
+    let earliest = Infinity;
+    for (const e of entries) { const t = Date.parse(e.createdAt) / 1000; if (t < earliest) earliest = t; }
+    const track = points.length ? issTrack(earliest) : [];
+    return { points, track };
+  }, [data]);
 
   // Field explorer
   const [expProject, setExpProject] = useState<string>('');
@@ -93,10 +109,28 @@ export const Dashboard: React.FC = () => {
         {agg.byMonth.length ? <MonthBars data={agg.byMonth} /> : <p className="muted" style={{ fontSize: '.85rem' }}>No dated entries.</p>}
       </div>
 
-      {agg.gps.length > 0 && (
+      {(agg.gps.length > 0 || iss.points.length > 0) && (
         <div className="card pad" style={{ marginBottom: 16 }}>
-          <div className="card-title"><MapPin /> Locations ({agg.gps.length})</div>
-          <WorldMap points={agg.gps} colorFor={slug => PALETTE[Math.max(0, projectsInData.indexOf(slug)) % PALETTE.length]} />
+          <div className="card-title sb" style={{ justifyContent: 'space-between' }}>
+            <span className="row" style={{ gap: 8 }}><MapPin /> Locations ({agg.gps.length}{iss.points.length ? ` + ${iss.points.length} ISS` : ''})</span>
+            {iss.points.length > 0 && (
+              <label className="row" style={{ gap: 6, fontSize: '.78rem', fontWeight: 500, cursor: 'pointer' }}>
+                <input type="checkbox" checked={showIss} onChange={e => setShowIss(e.target.checked)} />
+                <Satellite size={13} /> Estimated ISS track
+              </label>
+            )}
+          </div>
+          <WorldMap
+            points={agg.gps}
+            colorFor={slug => PALETTE[Math.max(0, projectsInData.indexOf(slug)) % PALETTE.length]}
+            issPoints={showIss ? iss.points : []}
+            issTrack={showIss ? iss.track : []}
+          />
+          {showIss && iss.points.length > 0 && (
+            <div className="muted" style={{ fontSize: '.72rem', marginTop: 6 }}>
+              <Satellite size={11} style={{ verticalAlign: -1 }} /> ISS positions are <strong>estimated</strong> from each frame's timestamp using a simplified circular-orbit model (inclination {ISS_INCLINATION}°, ~93 min period). The latitude band is physically correct; absolute longitude is approximate.
+            </div>
+          )}
         </div>
       )}
 
@@ -173,10 +207,13 @@ function readVars(names: Record<string, string>): Record<string, string> {
 }
 
 // ---- World map (fixed equirectangular projection + graticule) ----
+const ISS_COLOR = '#e8833a';
 const WorldMap: React.FC<{
   points: { lat: number; lng: number; label: string; project: string }[];
   colorFor: (slug: string) => string;
-}> = ({ points, colorFor }) => {
+  issPoints?: { lat: number; lng: number; label: string; project: string }[];
+  issTrack?: { lat: number; lng: number }[][];
+}> = ({ points, colorFor, issPoints = [], issTrack = [] }) => {
   const W = 720, H = 360;
   const x = (lng: number) => ((lng + 180) / 360) * W;
   const y = (lat: number) => ((90 - lat) / 180) * H;
@@ -199,14 +236,27 @@ const WorldMap: React.FC<{
         {latLines.filter(v => v !== 0).map(v => (
           <text key={`ly${v}`} x={3} y={y(v) - 2} fontSize={9} fill={c['--muted']}>{`${Math.abs(v)}°${v < 0 ? 'S' : 'N'}`}</text>
         ))}
-        {/* points */}
+        {/* estimated ISS ground track (drawn under the points) */}
+        {issTrack.map((seg, i) => (
+          <polyline key={`t${i}`} points={seg.map(p => `${x(p.lng)},${y(p.lat)}`).join(' ')} fill="none" stroke={ISS_COLOR} strokeOpacity={0.55} strokeWidth={1} strokeDasharray="3 2" />
+        ))}
+        {/* real geotagged points */}
         {points.map((p, i) => (
           <circle key={i} cx={x(p.lng)} cy={y(p.lat)} r={4} fill={colorFor(p.project)} fillOpacity={0.8} stroke={c['--bg']} strokeWidth={0.7}>
             <title>{`${p.label} — ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`}</title>
           </circle>
         ))}
+        {/* estimated ISS positions */}
+        {issPoints.map((p, i) => (
+          <circle key={`iss${i}`} cx={x(p.lng)} cy={y(p.lat)} r={3.5} fill={ISS_COLOR} fillOpacity={0.85} stroke={c['--bg']} strokeWidth={0.6}>
+            <title>{`${p.label} (estimated ISS) — ${p.lat.toFixed(2)}, ${p.lng.toFixed(2)}`}</title>
+          </circle>
+        ))}
       </svg>
-      <div className="muted" style={{ fontSize: '.72rem', marginTop: 4 }}>Equirectangular world projection · {points.length} geotagged entries · hover a point for details</div>
+      <div className="row wrap muted" style={{ fontSize: '.72rem', marginTop: 4, gap: 12 }}>
+        <span>Equirectangular world projection · {points.length} geotagged{issPoints.length ? ` + ${issPoints.length} estimated` : ''}</span>
+        {issPoints.length > 0 && <span className="row" style={{ gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 9, background: ISS_COLOR, display: 'inline-block' }} /> estimated ISS</span>}
+      </div>
     </div>
   );
 };
