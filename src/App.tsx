@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler } from 'lucide-react';
+import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList } from 'lucide-react';
 import { TOOLS, toolById } from './tools';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
@@ -12,12 +12,14 @@ import { Contribute } from './components/Contribute';
 import { ExportShare } from './components/ExportShare';
 import { About } from './components/About';
 import { ToolFrame } from './components/ToolFrame';
+import { MetadataReview } from './components/MetadataReview';
 
 type Tab = string;
 
 const NAV: { id: Tab; label: string; sub: string; icon: React.ComponentType<any> }[] = [
   { id: 'database', label: 'Database', sub: 'Browse & analyze', icon: DbIcon },
   { id: 'dashboard', label: 'Dashboard', sub: 'Metadata analytics', icon: BarChart3 },
+  { id: 'metadata', label: 'Metadata review', sub: 'Conserved vs variant', icon: ClipboardList },
   { id: 'contribute', label: 'Contribute', sub: 'Projects & app', icon: UploadCloud },
   { id: 'export', label: 'Export & share', sub: 'Manifest · CSV', icon: Share2 },
   { id: 'about', label: 'About', sub: 'Marker & pipeline', icon: Info },
@@ -175,6 +177,8 @@ export default function App() {
               onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} onOpenTool={openTool} />
           ) : tab === 'dashboard' ? (
             <Dashboard />
+          ) : tab === 'metadata' ? (
+            <MetadataReview />
           ) : tab === 'contribute' ? (
             <Contribute projects={projects} active={active} onChangeActive={changeActive} onProjectsChange={refreshProjects} />
           ) : tab === 'export' ? (
