@@ -1,19 +1,21 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle } from 'lucide-react';
+import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3 } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
   fetchEntriesPage, fetchAllPage, getActive, setActive as persistActive, getProjects,
   projectName, isDemoProject, ALL, type ProjectRef,
 } from './api/epicollect';
 import { Database } from './components/Database';
+import { Dashboard } from './components/Dashboard';
 import { Contribute } from './components/Contribute';
 import { ExportShare } from './components/ExportShare';
 import { About } from './components/About';
 
-type Tab = 'database' | 'contribute' | 'export' | 'about';
+type Tab = 'database' | 'dashboard' | 'contribute' | 'export' | 'about';
 
 const NAV: { id: Tab; label: string; sub: string; icon: React.ComponentType<any> }[] = [
   { id: 'database', label: 'Database', sub: 'Browse & analyze', icon: DbIcon },
+  { id: 'dashboard', label: 'Dashboard', sub: 'Metadata analytics', icon: BarChart3 },
   { id: 'contribute', label: 'Contribute', sub: 'Projects & app', icon: UploadCloud },
   { id: 'export', label: 'Export & share', sub: 'Manifest · CSV', icon: Share2 },
   { id: 'about', label: 'About', sub: 'Marker & pipeline', icon: Info },
@@ -148,6 +150,8 @@ export default function App() {
           {tab === 'database' ? (
             <Database entries={entries} query={query} loading={loading} hasNext={hasNext} showProject={active === ALL}
               onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} />
+          ) : tab === 'dashboard' ? (
+            <Dashboard />
           ) : tab === 'contribute' ? (
             <Contribute projects={projects} active={active} onChangeActive={changeActive} onProjectsChange={refreshProjects} />
           ) : tab === 'export' ? (

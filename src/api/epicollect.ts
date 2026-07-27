@@ -105,6 +105,29 @@ export async function fetchAllPage(slugs: string[], perPage = 50): Promise<Entri
   return { entries: hydrate(entries), total, page: 1, hasNext: false, errors };
 }
 
+// Every entry across the given projects, fully paginated (for the dashboard).
+// Per-project failures are collected rather than aborting the whole load.
+// perPage 500 (the API max) keeps most projects to a single request, which
+// matters because entries are rate-limited to ~5 requests/min.
+export async function fetchAllComplete(slugs: string[], perPage = 500, maxPages = 6): Promise<{ entries: Ec5Entry[]; errors: string[] }> {
+  const errors: string[] = [];
+  const all: Ec5Entry[] = [];
+  await Promise.all(slugs.map(async slug => {
+    try {
+      let page = 1, more = true;
+      while (more && page <= maxPages) {
+        const r = await fetchOne(slug, page, perPage);
+        all.push(...r.entries);
+        more = r.hasNext; page++;
+      }
+    } catch (e) {
+      errors.push(`${projectName(slug)}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }));
+  all.sort((a, b) => (b.uploadedAt > a.uploadedAt ? 1 : -1));
+  return { entries: hydrate(all), errors };
+}
+
 async function fetchOne(slug: string, page: number, perPage: number): Promise<{ entries: Ec5Entry[]; total: number; hasNext: boolean }> {
   const url = `${EC5_BASE}/api/export/entries/${encodeURIComponent(slug)}?per_page=${perPage}&page=${page}&format=json`;
   const res = await fetch(url, { headers: { Accept: 'application/json' } });

@@ -9,6 +9,11 @@ more free [**Epicollect5**](https://five.epicollect.net) projects through their
 open API and runs the calibration-marker analysis **entirely in your browser**.
 There is no server and no hosting fee, and no Google GenAI / Gemini dependency.
 
+The **Database** tab filters entries by *All / With images / Analyzed* and by
+project (toggle chips), and the **Dashboard** tab presents cross-project
+analytics over every entry's metadata — entries per project, top species, a
+monthly timeline, a GPS map, and an interactive field explorer.
+
 Pick a project from the selector in the top bar, view **All projects** merged
 together, or add any public project by its slug in the **Contribute** tab. The
 bundled defaults are the CoSE *Clinostat Collaboration*, *AIRI Microgreen Growth
