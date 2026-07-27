@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive } from 'lucide-react';
+import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download } from 'lucide-react';
 import { addProject, removeProject, addGithubSource, addLocalSource, isBuiltin, isGithub, isLocal, projectUrl, type ProjectRef } from '../api/epicollect';
 import { parseGithub, defaultName, fetchGithubImages } from '../api/github';
 import { processUpload } from '../lib/localsource';
@@ -9,6 +9,21 @@ interface Props {
   active: string;
   onChangeActive: (slug: string) => void;
   onProjectsChange: () => void;
+}
+
+const TEMPLATE_CSV = `filename,species,treatment,captured,latitude,longitude,notes
+example_001.jpg,Arabidopsis thaliana (Col-0),1g ground control,2024-11-01T08:30:00,34.61988,135.49036,"day 3, healthy"
+example_002.jpg,Brassica rapa (Wisconsin Fast Plants),microgravity,2024-11-02T09:15:00,,,"tipburn observed; ISS = no GPS"
+example_003.jpg,Medicago truncatula,clinorotation,2024-11-03T10:00:00,,,"next to AstroBotany marker"
+`;
+
+function downloadTemplate() {
+  const blob = new Blob([TEMPLATE_CSV], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'metadata.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, onProjectsChange }) => {
@@ -78,6 +93,9 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
           <p className="muted" style={{ fontSize: '.82rem', marginTop: -6, marginBottom: 10 }}>
             Drop a <span className="mono">.zip</span> of images (e.g. downloaded from a Google Drive folder) or pick image files. They’re unzipped and prepared <strong>in your browser</strong> — EXIF (GPS, time, device) is read, each image is compressed, and any <span className="mono">metadata.csv</span>/<span className="mono">.json</span> inside is joined by filename. Saved locally (IndexedDB) as a source you can analyse; nothing is uploaded to a server.
           </p>
+          <div style={{ marginBottom: 10 }}>
+            <button className="btn btn-sm btn-ghost" onClick={downloadTemplate}><Download size={14} /> Download metadata.csv template</button>
+          </div>
           <div
             className={`dropzone ${hot ? 'hot' : ''}`}
             onDragOver={e => { e.preventDefault(); setHot(true); }}
@@ -116,6 +134,7 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
           </div>
           {ghMsg && <div style={{ marginTop: 8, fontSize: '.82rem', color: ghMsg.ok ? 'var(--ok)' : 'var(--danger)' }}>{ghMsg.text}</div>}
           <p className="muted" style={{ fontSize: '.74rem', marginTop: 8 }}>Uses the public GitHub API (60 requests/hour, anonymous). Large folders load thumbnails lazily as you scroll.</p>
+          <button className="btn btn-sm btn-ghost" onClick={downloadTemplate}><Download size={14} /> Download metadata.csv template</button>
         </div>
 
         {/* sources table */}
