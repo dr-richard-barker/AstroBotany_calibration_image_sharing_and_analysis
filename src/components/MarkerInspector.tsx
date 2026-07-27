@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Eraser, MapPin, Camera, ExternalLink } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Eraser, MapPin, Camera, ExternalLink, LineChart } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis, Pt } from '../types';
 import { urlToImageData } from '../lib/capture';
 import { analyzeMarker, analyzeFromQuad } from '../lib/detect';
 import { saveMarker, clearMarker } from '../api/epicollect';
+import { getResults, type AnalysisResult } from '../lib/cose-results';
 import { TOOLS, toolUrl } from '../tools';
 import { QuadAnnotator } from './QuadAnnotator';
 
@@ -19,6 +20,17 @@ const DEFAULT_QUAD: [Pt, Pt, Pt, Pt] = [
 
 export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged }) => {
   const slug = entry.project;
+  const ref = `${entry.project}::${entry.uuid}`;
+
+  // Analysis results written back by the sibling tools (shared same-origin store).
+  const [results, setResults] = useState<AnalysisResult[]>([]);
+  const refreshResults = useCallback(() => { getResults(ref).then(setResults).catch(() => {}); }, [ref]);
+  useEffect(() => {
+    refreshResults();
+    const on = () => refreshResults(); // pick up results when returning from a tool tab
+    window.addEventListener('focus', on);
+    return () => window.removeEventListener('focus', on);
+  }, [refreshResults]);
   const [imgData, setImgData] = useState<ImageData | null>(null);
   const [marker, setMarker] = useState<MarkerAnalysis | null>(entry.marker);
   const [busy, setBusy] = useState<string | null>(null);
@@ -116,7 +128,7 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged }) => 
             {marker && !dirty && <button className="btn btn-sm btn-ghost" onClick={clear} style={{ color: 'var(--danger)' }}><Eraser /> Clear</button>}
             <span className="grow" />
             {TOOLS.map(t => (
-              <a key={t.url} className="btn btn-sm btn-ghost" href={toolUrl(t.url, t.imgParam, entry.photoUrl!)} target="_blank" rel="noreferrer" title={`Open this image in ${t.name}`}>
+              <a key={t.url} className="btn btn-sm btn-ghost" href={toolUrl(t.url, t.imgParam, entry.photoUrl!, ref)} target="_blank" rel="noreferrer" title={`Open this image in ${t.name}`}>
                 <t.icon size={14} /> {t.name}
               </a>
             ))}
@@ -154,6 +166,24 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged }) => 
           <p className="muted" style={{ fontSize: '.86rem' }}>Run <strong>Detect marker</strong> to measure scale and colour from the Astrobotany card in this photo. Results are cached locally and included in exports.</p>
         )}
       </div>
+
+      {results.length > 0 && (
+        <div className="card pad">
+          <div className="card-title"><LineChart /> Analysis results</div>
+          {results.map(r => (
+            <div key={r.id} style={{ marginBottom: 12 }}>
+              <div className="row sb" style={{ justifyContent: 'space-between' }}>
+                <strong style={{ fontSize: '.86rem' }}>{r.toolName}</strong>
+                <span className="muted" style={{ fontSize: '.72rem' }}>{new Date(r.generatedAt).toLocaleString()}</span>
+              </div>
+              <dl className="kv" style={{ marginTop: 4 }}>
+                {Object.entries(r.metrics).map(([k, v]) => (<React.Fragment key={k}><dt>{k}</dt><dd>{String(v)}</dd></React.Fragment>))}
+              </dl>
+            </div>
+          ))}
+          <div className="muted" style={{ fontSize: '.72rem' }}>Written back by the analysis tools · shared in your browser · included in exports.</div>
+        </div>
+      )}
 
       <div className="card pad">
         <div className="card-title"><Camera /> Entry metadata</div>

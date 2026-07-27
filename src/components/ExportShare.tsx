@@ -2,6 +2,7 @@ import React from 'react';
 import { FileJson, Share2, Database, ExternalLink, Table } from 'lucide-react';
 import type { Ec5Entry, CollectionStats } from '../types';
 import { EC5_BASE, projectUrl, projectName } from '../api/epicollect';
+import { allResults } from '../lib/cose-results';
 
 interface Props {
   entries: Ec5Entry[];
@@ -12,7 +13,9 @@ interface Props {
 export const ExportShare: React.FC<Props> = ({ entries, label, stats }) => {
   const projectSlugs = [...new Set(entries.map(e => e.project))];
 
-  const downloadManifest = () => {
+  const downloadManifest = async () => {
+    const byRef = new Map<string, any[]>();
+    try { for (const r of await allResults()) { const a = byRef.get(r.ref) || []; a.push(r); byRef.set(r.ref, a); } } catch { /* no results */ }
     const manifest = {
       generatedAt: new Date().toISOString(),
       view: label,
@@ -22,6 +25,7 @@ export const ExportShare: React.FC<Props> = ({ entries, label, stats }) => {
         uuid: e.uuid, project: e.project, title: e.title, species: e.species,
         createdAt: e.createdAt, uploadedAt: e.uploadedAt,
         photoUrl: e.photoUrl, gps: e.gps, fields: e.fields, marker: e.marker,
+        analysisResults: byRef.get(`${e.project}::${e.uuid}`) || [],
       })),
     };
     const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });

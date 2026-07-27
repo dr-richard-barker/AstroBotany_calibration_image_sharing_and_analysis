@@ -9,5 +9,11 @@ export const TOOLS: ToolRef[] = [
   { name: 'Leaf Pigment & Size', sub: 'Pigment · leaf area', url: 'https://dr-richard-barker.github.io/Anthocyanin-Image-analysis/', icon: FlaskConical, imgParam: 'image' },
 ];
 
-export const toolUrl = (base: string, param: string, imageUrl?: string) =>
-  imageUrl ? `${base}?${param}=${encodeURIComponent(imageUrl)}` : base;
+// Build a tool URL that hands off the image plus a stable `ref` (so the tool can
+// write its results back to the shared store keyed to this image).
+export const toolUrl = (base: string, param: string, imageUrl?: string, ref?: string) => {
+  if (!imageUrl) return base;
+  const q = new URLSearchParams({ [param]: imageUrl });
+  if (ref) q.set('ref', ref);
+  return `${base}?${q.toString()}`;
+};
