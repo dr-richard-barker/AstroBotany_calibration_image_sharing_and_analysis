@@ -8,7 +8,6 @@ import { QuadAnnotator } from './QuadAnnotator';
 
 interface Props {
   entry: Ec5Entry;
-  slug: string;
   onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
 }
 
@@ -17,7 +16,8 @@ const DEFAULT_QUAD: [Pt, Pt, Pt, Pt] = [
   { x: 0.35, y: 0.35 }, { x: 0.65, y: 0.35 }, { x: 0.65, y: 0.6 }, { x: 0.35, y: 0.6 },
 ];
 
-export const MarkerInspector: React.FC<Props> = ({ entry, slug, onMarkerChanged }) => {
+export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged }) => {
+  const slug = entry.project;
   const [imgData, setImgData] = useState<ImageData | null>(null);
   const [marker, setMarker] = useState<MarkerAnalysis | null>(entry.marker);
   const [busy, setBusy] = useState<string | null>(null);

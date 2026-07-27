@@ -4,10 +4,18 @@ A community database for sharing images of organisms and science photographed
 **alongside the AstroBotany calibration marker** — so that physical scale
 (px/mm) and colour are recoverable from an ordinary phone photo.
 
-This is a **static site** (deployable free to GitHub Pages) that reads a free
-[**Epicollect5**](https://five.epicollect.net) project through its open API and
-runs the calibration-marker analysis **entirely in your browser**. There is no
-server and no hosting fee, and no Google GenAI / Gemini dependency.
+This is a **static site** (deployable free to GitHub Pages) that reads one or
+more free [**Epicollect5**](https://five.epicollect.net) projects through their
+open API and runs the calibration-marker analysis **entirely in your browser**.
+There is no server and no hosting fee, and no Google GenAI / Gemini dependency.
+
+Pick a project from the selector in the top bar, view **All projects** merged
+together, or add any public project by its slug in the **Contribute** tab. The
+bundled defaults are the CoSE *Clinostat Collaboration*, *AIRI Microgreen Growth
+& Biomass*, and *Growing Beyond Earth 2021–2022* projects. Entries that include a
+photo get a thumbnail and marker analysis; metadata-only entries are still
+browsable. Per-entry photo, species, and GPS fields are auto-detected regardless
+of the form's exact field names.
 
 > Live: `https://dr-richard-barker.github.io/AstroBotany_calibration_image_sharing_and_analysis/`
 

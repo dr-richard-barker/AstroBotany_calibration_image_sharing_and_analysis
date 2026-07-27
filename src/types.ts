@@ -34,6 +34,7 @@ export interface EntryField {
 // An Epicollect5 entry mapped for the gallery.
 export interface Ec5Entry {
   uuid: string;
+  project: string;           // Epicollect5 project slug this entry belongs to
   title: string;
   createdAt: string;
   uploadedAt: string;

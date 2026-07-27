@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
-import { fetchEntriesPage, getProjectSlug, setProjectSlug, hydrateMarkers, isDemoProject } from './api/epicollect';
+import {
+  fetchEntriesPage, fetchAllPage, getActive, setActive as persistActive, getProjects,
+  projectName, isDemoProject, ALL, type ProjectRef,
+} from './api/epicollect';
 import { Database } from './components/Database';
 import { Contribute } from './components/Contribute';
 import { ExportShare } from './components/ExportShare';
@@ -11,7 +14,7 @@ type Tab = 'database' | 'contribute' | 'export' | 'about';
 
 const NAV: { id: Tab; label: string; sub: string; icon: React.ComponentType<any> }[] = [
   { id: 'database', label: 'Database', sub: 'Browse & analyze', icon: DbIcon },
-  { id: 'contribute', label: 'Contribute', sub: 'Epicollect5 app', icon: UploadCloud },
+  { id: 'contribute', label: 'Contribute', sub: 'Projects & app', icon: UploadCloud },
   { id: 'export', label: 'Export & share', sub: 'Manifest · CSV', icon: Share2 },
   { id: 'about', label: 'About', sub: 'Marker & pipeline', icon: Info },
 ];
@@ -27,13 +30,14 @@ function initialTheme(): 'light' | 'dark' {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('database');
-  const [slug, setSlug] = useState<string>(getProjectSlug);
+  const [projects, setProjects] = useState<ProjectRef[]>(getProjects);
+  const [active, setActive] = useState<string>(getActive);
   const [entries, setEntries] = useState<Ec5Entry[]>([]);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [totalAvailable, setTotalAvailable] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme);
@@ -43,26 +47,28 @@ export default function App() {
     localStorage.setItem('cose-theme', theme);
   }, [theme]);
 
-  const loadPage = useCallback(async (targetSlug: string, targetPage: number, replace: boolean) => {
-    setLoading(true); setError(null);
+  const load = useCallback(async (sel: string, targetPage: number, replace: boolean) => {
+    setLoading(true); if (replace) setErrors([]);
     try {
-      const res = await fetchEntriesPage(targetSlug, targetPage, PER_PAGE);
-      const hydrated = hydrateMarkers(targetSlug, res.entries);
-      setEntries(prev => (replace ? hydrated : [...prev, ...hydrated]));
+      const res = sel === ALL
+        ? await fetchAllPage(getProjects().map(p => p.slug), PER_PAGE)
+        : await fetchEntriesPage(sel, targetPage, PER_PAGE);
+      setEntries(prev => (replace ? res.entries : [...prev, ...res.entries]));
       setPage(res.page); setHasNext(res.hasNext); setTotalAvailable(res.total);
+      setErrors(res.errors);
     } catch (e) {
       if (replace) setEntries([]);
-      setError(e instanceof Error ? e.message : String(e));
+      setErrors([e instanceof Error ? e.message : String(e)]);
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { loadPage(slug, 1, true); }, [slug, loadPage]);
+  useEffect(() => { load(active, 1, true); }, [active, load]);
 
-  const changeSlug = (next: string) => {
-    const s = next.trim();
-    if (!s || s === slug) { setTab('database'); return; }
-    setProjectSlug(s); setSlug(s); setEntries([]); setPage(1); setTab('database');
+  const changeActive = (sel: string) => {
+    if (sel === active) { setTab('database'); return; }
+    persistActive(sel); setActive(sel); setEntries([]); setPage(1); setTab('database');
   };
+  const refreshProjects = () => setProjects(getProjects());
 
   const onMarkerChanged = (uuid: string, marker: MarkerAnalysis | null) =>
     setEntries(prev => prev.map(e => (e.uuid === uuid ? { ...e, marker } : e)));
@@ -73,6 +79,8 @@ export default function App() {
     withPhoto: entries.filter(e => e.photoUrl).length,
     analyzed: entries.filter(e => e.marker?.markerFound).length,
   }), [entries, totalAvailable]);
+
+  const activeLabel = active === ALL ? 'All projects' : projectName(active);
 
   return (
     <div className={`app ${menuOpen ? 'menu-open' : ''}`}>
@@ -95,7 +103,7 @@ export default function App() {
         </nav>
         <div className="rail-foot">
           <div className="row" style={{ gap: 6 }}><Sprout size={14} color="var(--accent2)" /> {stats.total} loaded · {stats.analyzed} calibrated</div>
-          <div style={{ marginTop: 6 }}>Project: <span className="mono">{slug}</span></div>
+          <div style={{ marginTop: 6 }}>Viewing: <span className="mono">{activeLabel}</span></div>
         </div>
       </aside>
 
@@ -107,31 +115,43 @@ export default function App() {
             <input placeholder="Search title, species, metadata…" value={query} onChange={e => setQuery(e.target.value)} onFocus={() => setTab('database')} />
           </div>
           <span className="grow" />
+          <select className="select" style={{ width: 'auto', maxWidth: 220 }} value={active} onChange={e => changeActive(e.target.value)} title="Choose Epicollect5 project">
+            {projects.map(p => <option key={p.slug} value={p.slug}>{p.name}</option>)}
+            {projects.length > 1 && <option value={ALL}>All projects</option>}
+          </select>
           <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
         </header>
 
         <main className="content">
-          {isDemoProject(slug) && tab === 'database' && (
+          {isDemoProject(active) && tab === 'database' && (
             <div className="card pad" style={{ marginBottom: 14, borderColor: 'var(--accent)', display: 'flex', gap: 10, alignItems: 'center' }}>
               <AlertTriangle size={18} color="var(--accent)" />
-              <div style={{ fontSize: '.85rem' }}>Showing Epicollect5’s public demo project. Set your own in <button className="btn btn-sm btn-primary" style={{ padding: '2px 8px' }} onClick={() => setTab('contribute')}>Contribute</button></div>
+              <div style={{ fontSize: '.85rem' }}>Showing Epicollect5’s public demo project. Choose a real project from the selector, or add one in <button className="btn btn-sm btn-primary" style={{ padding: '2px 8px' }} onClick={() => setTab('contribute')}>Contribute</button></div>
             </div>
           )}
-          {error && (
-            <div className="card pad" style={{ marginBottom: 14, borderColor: 'var(--danger)', color: 'var(--danger)', fontSize: '.85rem' }}>
-              Couldn’t load “{slug}”: {error}
+          {active !== ALL && !isDemoProject(active) && tab === 'database' && !loading && stats.total > 0 && stats.withPhoto === 0 && (
+            <div className="card pad" style={{ marginBottom: 14, borderColor: 'var(--warn)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <AlertTriangle size={18} color="var(--warn)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ fontSize: '.85rem' }}>
+                This project has entries but <strong>no Photo field</strong>, so there are no images to analyse yet. Add a <span className="mono">Photo</span> question to its Epicollect5 form so contributors can attach a specimen photo next to the marker — the calibration analysis lights up automatically. You can still browse the metadata below.
+              </div>
+            </div>
+          )}
+          {errors.length > 0 && tab === 'database' && (
+            <div className="card pad" style={{ marginBottom: 14, borderColor: 'var(--danger)', color: 'var(--danger)', fontSize: '.82rem' }}>
+              {errors.map((e, i) => <div key={i}>{e}</div>)}
             </div>
           )}
 
           {tab === 'database' ? (
-            <Database entries={entries} slug={slug} query={query} loading={loading} hasNext={hasNext}
-              onLoadMore={() => loadPage(slug, page + 1, false)} onMarkerChanged={onMarkerChanged} />
+            <Database entries={entries} query={query} loading={loading} hasNext={hasNext} showProject={active === ALL}
+              onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} />
           ) : tab === 'contribute' ? (
-            <Contribute slug={slug} onSlugChange={changeSlug} />
+            <Contribute projects={projects} active={active} onChangeActive={changeActive} onProjectsChange={refreshProjects} />
           ) : tab === 'export' ? (
-            <ExportShare entries={entries} slug={slug} stats={stats} />
+            <ExportShare entries={entries} label={activeLabel} stats={stats} />
           ) : (
             <About />
           )}

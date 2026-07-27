@@ -1,21 +1,22 @@
 import React, { useMemo, useState } from 'react';
-import { Database as DbIcon, CheckCircle2, Images, Loader2, ChevronDown } from 'lucide-react';
+import { Database as DbIcon, CheckCircle2, Images, Loader2, ChevronDown, FileText } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis } from '../types';
 import { MarkerInspector } from './MarkerInspector';
+import { projectName } from '../api/epicollect';
 
 interface Props {
   entries: Ec5Entry[];
-  slug: string;
   query: string;
   loading: boolean;
   hasNext: boolean;
+  showProject: boolean;
   onLoadMore: () => void;
   onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
 }
 
 type Filter = 'all' | 'analyzed' | 'unanalyzed';
 
-export const Database: React.FC<Props> = ({ entries, slug, query, loading, hasNext, onLoadMore, onMarkerChanged }) => {
+export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -64,7 +65,9 @@ export const Database: React.FC<Props> = ({ entries, slug, query, loading, hasNe
                 <div key={e.uuid} className={`tile ${selectedId === e.uuid ? 'sel' : ''}`} onClick={() => setSelectedId(e.uuid)}>
                   <div className="thumb">
                     {e.thumbUrl ? <img src={e.thumbUrl} alt={e.title} loading="lazy" crossOrigin="anonymous" />
-                      : <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted)', fontSize: '.7rem' }}>no photo</div>}
+                      : <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted)', gap: 4 }}>
+                          <FileText size={22} style={{ opacity: .5 }} /><span style={{ fontSize: '.68rem' }}>metadata only</span>
+                        </div>}
                     <div className="corner-badge">
                       {e.marker?.markerFound ? <span className="badge pos"><CheckCircle2 size={11} /> marker</span> : e.marker ? <span className="badge neg">no marker</span> : null}
                     </div>
@@ -73,6 +76,7 @@ export const Database: React.FC<Props> = ({ entries, slug, query, loading, hasNe
                   <div className="meta">
                     <h4>{e.title}</h4>
                     <div className="sp">{e.species || (e.fields[0]?.value ?? '')}</div>
+                    {showProject && <div className="chip tag" style={{ marginTop: 6 }}>{projectName(e.project)}</div>}
                   </div>
                 </div>
               ))}
@@ -80,7 +84,7 @@ export const Database: React.FC<Props> = ({ entries, slug, query, loading, hasNe
 
             {selected && (
               <div style={{ position: 'sticky', top: 74 }}>
-                <MarkerInspector entry={selected} slug={slug} onMarkerChanged={onMarkerChanged} />
+                <MarkerInspector entry={selected} onMarkerChanged={onMarkerChanged} />
               </div>
             )}
           </div>
