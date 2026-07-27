@@ -69,8 +69,46 @@ npm run build
 npm start
 ```
 
-The database and uploaded files live in `./data/` (git-ignored) — each
-deployment builds its own.
+The database and uploaded files live in `./data/` (git-ignored, or wherever
+`DATA_DIR` points) — each deployment builds its own.
+
+## Deploy
+
+This app needs a **Node server** (for the shared database and server-side Google
+Photos ingestion), so it cannot run on GitHub Pages. Node **≥ 22.5** is required
+for the built-in `node:sqlite` module (pinned via `.node-version`).
+
+### Render (one-click blueprint)
+
+A [`render.yaml`](./render.yaml) blueprint is included.
+
+1. Push to GitHub (the blueprint targets the `main` branch).
+2. In [Render](https://render.com), **New + → Blueprint**, and select this repo.
+3. Render provisions the web service **plus a 1 GB persistent disk** mounted at
+   `/var/data` (`DATA_DIR`), builds, and starts. First boot auto-seeds the real
+   starter images; the health check is `/api/health`.
+
+The blueprint uses the `starter` plan because the disk must persist contributed
+images. To try it free, set `plan: free` and remove the `disk:` block — but the
+free filesystem is ephemeral (uploads reset on redeploy) and idles out.
+
+### Docker (Fly.io / your own server)
+
+A [`Dockerfile`](./Dockerfile) is included; mount a volume at `/data`:
+
+```bash
+docker build -t astrobotany-db .
+docker run -p 3000:3000 -v astrobotany-data:/data astrobotany-db
+```
+
+### Environment
+
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `PORT` | `3000` | HTTP port |
+| `DATA_DIR` | `./data` | SQLite DB + uploads (point at a persistent volume) |
+| `NODE_ENV` | — | `production` serves the built `dist/` |
+| `AUTO_SEED` | `true` | Seed real starter images when the DB is empty |
 
 ## Seed images
 

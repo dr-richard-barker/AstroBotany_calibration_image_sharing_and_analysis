@@ -10,7 +10,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { createServer as createViteServer } from 'vite';
 import exifr from 'exifr';
-import { db, UPLOAD_DIR, ROOT, rowToRecord, safeJson, storeImage, imageSize, type Row } from './db.ts';
+import { db, UPLOAD_DIR, ROOT, rowToRecord, safeJson, storeImage, imageSize, countImages, type Row } from './db.ts';
+import { runSeed } from './seed-data.ts';
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -232,6 +233,13 @@ export function makeStoreZip(entries: { name: string; data: Buffer }[]): Buffer 
 
 // --- static client (prod) / vite middleware (dev) --------------------------
 async function start() {
+  // On a fresh deploy (empty persistent disk) load the real starter images,
+  // unless disabled. Idempotent — does nothing once the DB has content.
+  if (process.env.AUTO_SEED !== 'false' && countImages() === 0) {
+    const n = runSeed(m => console.log(m));
+    if (n) console.log(`Auto-seeded ${n} starter image(s).`);
+  }
+
   if (process.env.NODE_ENV === 'production') {
     const dist = path.join(ROOT, 'dist');
     app.use(express.static(dist));

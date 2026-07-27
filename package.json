@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Community database for sharing images of organisms and science alongside the AstroBotany calibration marker, with on-device metadata capture, compression, and client-side marker analysis.",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "seed": "tsx scripts/seed.ts",
