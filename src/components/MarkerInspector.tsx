@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Trash2, MapPin, Camera } from 'lucide-react';
-import type { ImageRecord, MarkerAnalysis, Pt } from '../types';
-import { toImageData } from '../lib/capture';
+import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Eraser, MapPin, Camera, ExternalLink } from 'lucide-react';
+import type { Ec5Entry, MarkerAnalysis, Pt } from '../types';
+import { urlToImageData } from '../lib/capture';
 import { analyzeMarker, analyzeFromQuad } from '../lib/detect';
-import { updateMarker, deleteImage } from '../api/client';
+import { saveMarker, clearMarker } from '../api/epicollect';
 import { QuadAnnotator } from './QuadAnnotator';
 
 interface Props {
-  rec: ImageRecord;
-  onSaved: (rec: ImageRecord) => void;
-  onDeleted: (id: string) => void;
+  entry: Ec5Entry;
+  slug: string;
+  onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
 }
 
 const rgb = (c: [number, number, number]) => `rgb(${c[0]},${c[1]},${c[2]})`;
@@ -17,41 +17,35 @@ const DEFAULT_QUAD: [Pt, Pt, Pt, Pt] = [
   { x: 0.35, y: 0.35 }, { x: 0.65, y: 0.35 }, { x: 0.65, y: 0.6 }, { x: 0.35, y: 0.6 },
 ];
 
-export const MarkerInspector: React.FC<Props> = ({ rec, onSaved, onDeleted }) => {
+export const MarkerInspector: React.FC<Props> = ({ entry, slug, onMarkerChanged }) => {
   const [imgData, setImgData] = useState<ImageData | null>(null);
-  const [marker, setMarker] = useState<MarkerAnalysis | null>(rec.marker);
+  const [marker, setMarker] = useState<MarkerAnalysis | null>(entry.marker);
   const [busy, setBusy] = useState<string | null>(null);
   const [annotate, setAnnotate] = useState(false);
   const [quad, setQuad] = useState<[Pt, Pt, Pt, Pt]>(DEFAULT_QUAD);
   const [dirty, setDirty] = useState(false);
-  const dims = useRef<{ w: number; h: number }>({ w: rec.width, h: rec.height });
+  const [err, setErr] = useState<string | null>(null);
+  const dims = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
 
   useEffect(() => {
-    setMarker(rec.marker);
-    setAnnotate(false);
-    setDirty(false);
-    setImgData(null);
+    setMarker(entry.marker); setAnnotate(false); setDirty(false); setImgData(null); setErr(null);
+    if (!entry.photoUrl) return;
     let alive = true;
-    (async () => {
-      try {
-        const blob = await (await fetch(rec.url)).blob();
-        const id = await toImageData(blob);
-        if (!alive) return;
-        dims.current = { w: id.width, h: id.height };
-        setImgData(id);
-        if (rec.marker?.corners) setQuad(cornersToFrac(rec.marker.corners, id.width, id.height));
-      } catch { /* image failed to load */ }
-    })();
+    urlToImageData(entry.photoUrl).then(id => {
+      if (!alive) return;
+      dims.current = { w: id.width, h: id.height };
+      setImgData(id);
+      if (entry.marker?.corners) setQuad(cornersToFrac(entry.marker.corners, id.width, id.height));
+    }).catch(() => alive && setErr('Could not load the image for analysis.'));
     return () => { alive = false; };
-  }, [rec.id]);
+  }, [entry.uuid]);
 
   const runDetect = async (skipGeometric = false) => {
     if (!imgData) return;
     setBusy('detect');
     try {
       const m = await analyzeMarker(imgData, { skipGeometric });
-      setMarker(m);
-      setDirty(true);
+      setMarker(m); setDirty(true);
       if (m.corners) setQuad(cornersToFrac(m.corners, dims.current.w, dims.current.h));
     } finally { setBusy(null); }
   };
@@ -59,86 +53,72 @@ export const MarkerInspector: React.FC<Props> = ({ rec, onSaved, onDeleted }) =>
   const recomputeFromQuad = () => {
     if (!imgData) return;
     const px = quad.map(p => ({ x: p.x * dims.current.w, y: p.y * dims.current.h })) as [Pt, Pt, Pt, Pt];
-    setMarker(analyzeFromQuad(imgData, px));
-    setDirty(true);
+    setMarker(analyzeFromQuad(imgData, px)); setDirty(true);
   };
 
-  const save = async () => {
+  const save = () => {
     if (!marker) return;
-    setBusy('save');
-    try { onSaved(await updateMarker(rec.id, marker)); setDirty(false); }
-    finally { setBusy(null); }
+    saveMarker(slug, entry.uuid, marker);
+    onMarkerChanged(entry.uuid, marker);
+    setDirty(false);
   };
-
-  const remove = async () => {
-    setBusy('delete');
-    try { await deleteImage(rec.id); onDeleted(rec.id); }
-    finally { setBusy(null); }
+  const clear = () => {
+    clearMarker(slug, entry.uuid);
+    setMarker(null); setDirty(false);
+    onMarkerChanged(entry.uuid, null);
   };
 
   const overlayQuad = marker?.corners ? cornersToFrac(marker.corners, dims.current.w, dims.current.h) : null;
-  const md = rec.metadata || {};
 
   return (
     <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr)', gap: 16 }}>
-      {/* image + overlay / annotator */}
       <div className="card pad">
         <div className="card-title sb" style={{ justifyContent: 'space-between' }}>
           <span className="row" style={{ gap: 8 }}><Crosshair /> {annotate ? 'Place the 4 marker corners' : 'Marker analysis'}</span>
-          <button className="btn btn-sm btn-ghost" onClick={() => setAnnotate(a => !a)}>
-            <Edit3 /> {annotate ? 'Done placing' : 'Adjust manually'}
-          </button>
+          {entry.photoUrl && (
+            <button className="btn btn-sm btn-ghost" onClick={() => setAnnotate(a => !a)}><Edit3 /> {annotate ? 'Done' : 'Adjust manually'}</button>
+          )}
         </div>
 
-        {annotate ? (
+        {!entry.photoUrl ? (
+          <p className="muted" style={{ fontSize: '.86rem' }}>This entry has no photo.</p>
+        ) : annotate ? (
           <>
-            <QuadAnnotator imageUrl={rec.url} quad={quad} onChange={q => setQuad(q)} />
-            <div className="row" style={{ marginTop: 10, gap: 8 }}>
-              <button className="btn btn-teal btn-sm" onClick={recomputeFromQuad}>
-                <Scale /> Compute scale &amp; colour from these corners
-              </button>
+            <QuadAnnotator imageUrl={entry.photoUrl} quad={quad} onChange={setQuad} />
+            <div className="row wrap" style={{ marginTop: 10, gap: 8 }}>
+              <button className="btn btn-teal btn-sm" onClick={recomputeFromQuad}><Scale /> Compute from these corners</button>
               <span className="muted" style={{ fontSize: '.78rem' }}>Order: top-left, top-right, bottom-right, bottom-left.</span>
             </div>
           </>
         ) : (
           <div style={{ position: 'relative' }}>
-            <img src={rec.url} alt={rec.title} style={{ display: 'block', width: '100%', borderRadius: 8 }} />
+            <img src={entry.photoUrl} alt={entry.title} crossOrigin="anonymous" style={{ display: 'block', width: '100%', borderRadius: 8 }} />
             {overlayQuad && (
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-                <polygon points={overlayQuad.map(p => `${p.x * 100},${p.y * 100}`).join(' ')}
-                  fill="color-mix(in srgb, var(--accent2) 18%, transparent)"
-                  stroke="var(--accent2)" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                <polygon points={overlayQuad.map(p => `${p.x * 100},${p.y * 100}`).join(' ')} fill="color-mix(in srgb, var(--accent2) 18%, transparent)" stroke="var(--accent2)" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
               </svg>
             )}
-            {!imgData && (
-              <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.25)', borderRadius: 8 }}>
-                <Loader2 className="spin" color="#fff" />
-              </div>
+            {!imgData && !err && (
+              <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.25)', borderRadius: 8 }}><Loader2 className="spin" color="#fff" /></div>
             )}
           </div>
         )}
+        {err && <p style={{ color: 'var(--danger)', fontSize: '.82rem', marginTop: 8 }}>{err}</p>}
 
-        <div className="row wrap" style={{ marginTop: 12, gap: 8 }}>
-          <button className="btn btn-primary btn-sm" disabled={!imgData || busy === 'detect'} onClick={() => runDetect(false)}>
-            {busy === 'detect' ? <Loader2 className="spin" /> : <Sparkles />} Detect marker
-          </button>
-          <button className="btn btn-sm btn-ghost" disabled={!imgData || busy === 'detect'} onClick={() => runDetect(true)} title="Force the ArUco decoder (for the ArUco target demo image)">
-            ArUco decoder
-          </button>
-          {dirty && (
-            <button className="btn btn-teal btn-sm" disabled={busy === 'save'} onClick={save}>
-              {busy === 'save' ? <Loader2 className="spin" /> : <Save />} Save analysis
+        {entry.photoUrl && (
+          <div className="row wrap" style={{ marginTop: 12, gap: 8 }}>
+            <button className="btn btn-primary btn-sm" disabled={!imgData || busy === 'detect'} onClick={() => runDetect(false)}>
+              {busy === 'detect' ? <Loader2 className="spin" /> : <Sparkles />} Detect marker
             </button>
-          )}
-          <span className="grow" />
-          <button className="btn btn-sm btn-ghost" disabled={busy === 'delete'} onClick={remove} title="Remove from database" style={{ color: 'var(--danger)' }}>
-            <Trash2 />
-          </button>
-        </div>
+            <button className="btn btn-sm btn-ghost" disabled={!imgData || busy === 'detect'} onClick={() => runDetect(true)} title="Force the ArUco decoder (for a plain ArUco target)">ArUco decoder</button>
+            {dirty && <button className="btn btn-teal btn-sm" onClick={save}><Save /> Save analysis</button>}
+            {marker && !dirty && <button className="btn btn-sm btn-ghost" onClick={clear} style={{ color: 'var(--danger)' }}><Eraser /> Clear</button>}
+            <span className="grow" />
+            <a className="btn btn-sm btn-ghost" href={entry.photoUrl} target="_blank" rel="noreferrer" title="Open full image"><ExternalLink /></a>
+          </div>
+        )}
       </div>
 
-      {/* measured metrics */}
       <div className="card pad">
         <div className="card-title"><Scale /> Calibration &amp; colour</div>
         {marker?.markerFound ? (
@@ -146,12 +126,10 @@ export const MarkerInspector: React.FC<Props> = ({ rec, onSaved, onDeleted }) =>
             <div className="stat-row" style={{ marginBottom: 14 }}>
               <div className="stat"><div className="k">Scale</div><div className="v accent">{marker.pxPerMm?.toFixed(2)}<span style={{ fontSize: '.8rem' }}> px/mm</span></div></div>
               <div className="stat"><div className="k"><RotateCw size={11} style={{ verticalAlign: -1 }} /> Rotation</div><div className="v">{marker.rotationDeg?.toFixed(1)}°</div></div>
-              <div className="stat"><div className="k">Corners found</div><div className="v teal">{marker.cornersFound}/4</div></div>
+              <div className="stat"><div className="k">Corners</div><div className="v teal">{marker.cornersFound}/4</div></div>
               <div className="stat"><div className="k">Colour residual</div><div className="v">{marker.colorResidualRms?.toFixed(3)}</div></div>
             </div>
-            <div className="muted" style={{ fontSize: '.78rem', marginBottom: 8 }}>
-              Detector: <span className="mono">{marker.detector}</span> · 15-chip Astrobotany reference (measured vs. standard)
-            </div>
+            <div className="muted" style={{ fontSize: '.78rem', marginBottom: 8 }}>Detector: <span className="mono">{marker.detector}</span> · 15-chip Astrobotany reference (measured vs. standard) · cached in your browser</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(84px,1fr))', gap: 8 }}>
               {marker.colorChips.map((c, i) => (
                 <div key={i} className="mono" style={{ fontSize: '.66rem', textAlign: 'center' }}>
@@ -165,36 +143,24 @@ export const MarkerInspector: React.FC<Props> = ({ rec, onSaved, onDeleted }) =>
             </div>
           </>
         ) : marker ? (
-          <p className="muted" style={{ fontSize: '.86rem' }}>
-            No calibration marker detected ({marker.cornersFound}/4 corners). Use <strong>Adjust manually</strong> to place the four corners over the card, then compute the scale.
-          </p>
+          <p className="muted" style={{ fontSize: '.86rem' }}>No marker detected ({marker.cornersFound}/4 corners). Use <strong>Adjust manually</strong> to place the four corners, then compute the scale.</p>
         ) : (
-          <p className="muted" style={{ fontSize: '.86rem' }}>Run <strong>Detect marker</strong> to measure the scale and colour calibration from the Astrobotany card in this photo.</p>
+          <p className="muted" style={{ fontSize: '.86rem' }}>Run <strong>Detect marker</strong> to measure scale and colour from the Astrobotany card in this photo. Results are cached locally and included in exports.</p>
         )}
       </div>
 
-      {/* metadata */}
       <div className="card pad">
-        <div className="card-title"><Camera /> Image &amp; device metadata</div>
+        <div className="card-title"><Camera /> Entry metadata</div>
         <dl className="kv">
-          <dt>Species</dt><dd>{rec.species || '—'}</dd>
-          <dt>Contributor</dt><dd>{rec.contributor || '—'}</dd>
-          <dt>Source</dt><dd>{rec.source}{rec.sourceRef ? ` · ${rec.sourceRef}` : ''}</dd>
-          <dt>License</dt><dd>{rec.license || '—'}</dd>
-          <dt>Stored size</dt><dd>{rec.width}×{rec.height} · {(rec.fileSize / 1024).toFixed(0)} KB</dd>
-          {rec.origWidth ? <><dt>Original size</dt><dd>{rec.origWidth}×{rec.origHeight}{rec.origFileSize ? ` · ${(rec.origFileSize / 1024).toFixed(0)} KB` : ''}</dd></> : null}
-          {rec.capturedAt ? <><dt>Captured</dt><dd>{new Date(rec.capturedAt).toLocaleString()}</dd></> : null}
-          <dt>Uploaded</dt><dd>{new Date(rec.uploadedAt).toLocaleString()}</dd>
-          {md.make || md.model ? <><dt>Device</dt><dd>{[md.make, md.model].filter(Boolean).join(' ')}</dd></> : null}
-          {md.focalLength ? <><dt>Lens</dt><dd>{md.focalLength}mm{md.fNumber ? ` · ƒ/${md.fNumber}` : ''}{md.iso ? ` · ISO ${md.iso}` : ''}</dd></> : null}
-          {md.gpsLatitude != null ? <><dt><MapPin size={11} style={{ verticalAlign: -1 }} /> GPS</dt><dd>{md.gpsLatitude.toFixed(5)}, {md.gpsLongitude?.toFixed(5)}</dd></> : null}
+          {entry.species && <><dt>Species</dt><dd>{entry.species}</dd></>}
+          {entry.fields.filter(f => f.name.toLowerCase() !== 'species').map((f, i) => (
+            <React.Fragment key={i}><dt>{f.name}</dt><dd>{f.value}</dd></React.Fragment>
+          ))}
+          {entry.gps && <><dt><MapPin size={11} style={{ verticalAlign: -1 }} /> GPS</dt><dd>{entry.gps.lat.toFixed(5)}, {entry.gps.lng.toFixed(5)}</dd></>}
+          {entry.createdAt && <><dt>Recorded</dt><dd>{new Date(entry.createdAt).toLocaleString()}</dd></>}
+          {entry.uploadedAt && <><dt>Uploaded</dt><dd>{new Date(entry.uploadedAt).toLocaleString()}</dd></>}
+          <dt>Entry ID</dt><dd style={{ fontSize: '.72rem' }}>{entry.uuid}</dd>
         </dl>
-        {rec.notes && <p style={{ fontSize: '.85rem', marginTop: 12 }}>{rec.notes}</p>}
-        {rec.tags?.length ? (
-          <div className="row wrap" style={{ gap: 6, marginTop: 12 }}>
-            {rec.tags.map((t, i) => <span key={i} className="chip tag">{t}</span>)}
-          </div>
-        ) : null}
       </div>
     </div>
   );

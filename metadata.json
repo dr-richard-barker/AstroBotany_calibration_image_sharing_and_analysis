@@ -1,4 +1,4 @@
 {
   "name": "AstroBotany Calibration Image Database",
-  "description": "Community database for sharing images of organisms and science alongside the AstroBotany calibration marker. On-device metadata capture and compression, client-side ArUco marker detection and colour calibration, Express + node:sqlite storage, and Google Photos album ingestion. No Google GenAI dependency."
+  "description": "Static viewer for a community collection of organism/science photos taken alongside the AstroBotany calibration marker. Photos + metadata are stored in a free Epicollect5 project; marker detection and colour calibration run client-side. Deploys to GitHub Pages. No server, no Google GenAI."
 }

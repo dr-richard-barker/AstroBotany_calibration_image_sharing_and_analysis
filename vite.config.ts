@@ -3,9 +3,12 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 
-export default defineConfig({
+// On GitHub Pages the site is served under /<repo>/, so the production build
+// needs that base path; dev runs at root.
+const REPO_BASE = '/AstroBotany_calibration_image_sharing_and_analysis/';
+
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? REPO_BASE : '/',
   plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: { '@': path.resolve(__dirname, '.') },
-  },
-});
+  resolve: { alias: { '@': path.resolve(__dirname, '.') } },
+}));

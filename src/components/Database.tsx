@@ -1,93 +1,96 @@
 import React, { useMemo, useState } from 'react';
-import { Database as DbIcon, CheckCircle2, CircleSlash, Images } from 'lucide-react';
-import type { ImageRecord } from '../types';
+import { Database as DbIcon, CheckCircle2, Images, Loader2, ChevronDown } from 'lucide-react';
+import type { Ec5Entry, MarkerAnalysis } from '../types';
 import { MarkerInspector } from './MarkerInspector';
 
 interface Props {
-  images: ImageRecord[];
+  entries: Ec5Entry[];
+  slug: string;
   query: string;
-  onSaved: (rec: ImageRecord) => void;
-  onDeleted: (id: string) => void;
+  loading: boolean;
+  hasNext: boolean;
+  onLoadMore: () => void;
+  onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
 }
 
-type MarkerFilter = 'all' | 'yes' | 'no';
+type Filter = 'all' | 'analyzed' | 'unanalyzed';
 
-export const Database: React.FC<Props> = ({ images, query, onSaved, onDeleted }) => {
-  const [markerFilter, setMarkerFilter] = useState<MarkerFilter>('all');
+export const Database: React.FC<Props> = ({ entries, slug, query, loading, hasNext, onLoadMore, onMarkerChanged }) => {
+  const [filter, setFilter] = useState<Filter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return images.filter(img => {
-      if (markerFilter === 'yes' && !img.marker?.markerFound) return false;
-      if (markerFilter === 'no' && img.marker?.markerFound) return false;
+    return entries.filter(e => {
+      if (filter === 'analyzed' && !e.marker?.markerFound) return false;
+      if (filter === 'unanalyzed' && e.marker?.markerFound) return false;
       if (!q) return true;
-      return [img.title, img.species, img.contributor, img.notes, ...(img.tags || [])]
-        .filter(Boolean).join(' ').toLowerCase().includes(q);
+      return [e.title, e.species, ...e.fields.map(f => f.value)].filter(Boolean).join(' ').toLowerCase().includes(q);
     });
-  }, [images, query, markerFilter]);
+  }, [entries, query, filter]);
 
-  const selected = filtered.find(i => i.id === selectedId) || null;
-  const withMarker = images.filter(i => i.marker?.markerFound).length;
+  const selected = filtered.find(e => e.uuid === selectedId) || null;
+  const analyzed = entries.filter(e => e.marker?.markerFound).length;
 
   return (
     <div>
       <div className="page-head">
-        <div className="eyebrow">Shared library</div>
+        <div className="eyebrow">Shared collection</div>
         <h1>Calibration image database</h1>
-        <p>Every image contributed to this instance, with its device metadata and any calibration-marker analysis. Select an image to detect the marker, adjust it, or read its metadata.</p>
+        <p>Photos contributed to the Epicollect5 project, read live from its open API. Select one to detect the calibration marker and measure scale &amp; colour — analysis runs in your browser and is cached locally.</p>
       </div>
 
       <div className="row wrap sb" style={{ marginBottom: 14, gap: 10 }}>
         <div className="row" style={{ gap: 6 }}>
-          {([['all', 'All', images.length], ['yes', 'With marker', withMarker], ['no', 'No marker', images.length - withMarker]] as const).map(([k, label, n]) => (
-            <button key={k} className={`btn btn-sm ${markerFilter === k ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setMarkerFilter(k as MarkerFilter)}>
-              {k === 'yes' ? <CheckCircle2 /> : k === 'no' ? <CircleSlash /> : <Images />} {label} ({n})
+          {([['all', 'All', entries.length], ['analyzed', 'Analyzed', analyzed], ['unanalyzed', 'Not analyzed', entries.length - analyzed]] as const).map(([k, label, n]) => (
+            <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter(k as Filter)}>
+              {k === 'analyzed' ? <CheckCircle2 /> : <Images />} {label} ({n})
             </button>
           ))}
         </div>
         <span className="muted" style={{ fontSize: '.82rem' }}>{filtered.length} shown</span>
       </div>
 
-      {images.length === 0 ? (
+      {entries.length === 0 && !loading ? (
         <div className="card empty">
           <DbIcon size={30} style={{ opacity: .5 }} />
-          <p>No images yet. Head to <strong>Contribute</strong> to add a phone photo or import a Google Photos album.</p>
+          <p>No entries found for this project. Check the project name in the top bar, or open <strong>Contribute</strong> to add photos via the Epicollect5 app.</p>
         </div>
       ) : (
-        <div className="grid" style={{ gridTemplateColumns: selected ? 'minmax(0, 1.15fr) minmax(0, 1fr)' : '1fr', alignItems: 'start' }}>
-          <div className="gallery">
-            {filtered.map(img => (
-              <div key={img.id} className={`tile ${selectedId === img.id ? 'sel' : ''}`} onClick={() => setSelectedId(img.id)}>
-                <div className="thumb">
-                  <img src={img.url} alt={img.title} loading="lazy" />
-                  <div className="corner-badge">
-                    {img.marker?.markerFound
-                      ? <span className="badge pos"><CheckCircle2 size={11} /> marker</span>
-                      : img.marker ? <span className="badge neg">no marker</span> : null}
+        <>
+          <div className="grid" style={{ gridTemplateColumns: selected ? 'minmax(0, 1.15fr) minmax(0, 1fr)' : '1fr', alignItems: 'start' }}>
+            <div className="gallery">
+              {filtered.map(e => (
+                <div key={e.uuid} className={`tile ${selectedId === e.uuid ? 'sel' : ''}`} onClick={() => setSelectedId(e.uuid)}>
+                  <div className="thumb">
+                    {e.thumbUrl ? <img src={e.thumbUrl} alt={e.title} loading="lazy" crossOrigin="anonymous" />
+                      : <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted)', fontSize: '.7rem' }}>no photo</div>}
+                    <div className="corner-badge">
+                      {e.marker?.markerFound ? <span className="badge pos"><CheckCircle2 size={11} /> marker</span> : e.marker ? <span className="badge neg">no marker</span> : null}
+                    </div>
+                    {e.marker?.markerFound && e.marker.pxPerMm ? <div className="scale-badge">{e.marker.pxPerMm.toFixed(1)} px/mm</div> : null}
                   </div>
-                  {img.marker?.markerFound && img.marker.pxPerMm ? (
-                    <div className="scale-badge">{img.marker.pxPerMm.toFixed(1)} px/mm</div>
-                  ) : null}
+                  <div className="meta">
+                    <h4>{e.title}</h4>
+                    <div className="sp">{e.species || (e.fields[0]?.value ?? '')}</div>
+                  </div>
                 </div>
-                <div className="meta">
-                  <h4>{img.title}</h4>
-                  <div className="sp">{img.species || img.contributor || img.source}</div>
-                </div>
+              ))}
+            </div>
+
+            {selected && (
+              <div style={{ position: 'sticky', top: 74 }}>
+                <MarkerInspector entry={selected} slug={slug} onMarkerChanged={onMarkerChanged} />
               </div>
-            ))}
+            )}
           </div>
 
-          {selected && (
-            <div style={{ position: 'sticky', top: 74 }}>
-              <MarkerInspector
-                rec={selected}
-                onSaved={r => { onSaved(r); }}
-                onDeleted={id => { onDeleted(id); setSelectedId(null); }}
-              />
-            </div>
-          )}
-        </div>
+          <div className="row" style={{ justifyContent: 'center', marginTop: 18 }}>
+            {loading ? <span className="row muted" style={{ gap: 8 }}><Loader2 className="spin" size={16} /> Loading…</span>
+              : hasNext ? <button className="btn btn-sm" onClick={onLoadMore}><ChevronDown /> Load more</button>
+              : entries.length > 0 ? <span className="muted" style={{ fontSize: '.8rem' }}>End of collection</span> : null}
+          </div>
+        </>
       )}
     </div>
   );
