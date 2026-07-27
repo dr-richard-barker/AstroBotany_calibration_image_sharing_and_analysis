@@ -96,7 +96,7 @@ export const Dashboard: React.FC = () => {
       {agg.gps.length > 0 && (
         <div className="card pad" style={{ marginBottom: 16 }}>
           <div className="card-title"><MapPin /> Locations ({agg.gps.length})</div>
-          <GpsScatter points={agg.gps} />
+          <WorldMap points={agg.gps} colorFor={slug => PALETTE[Math.max(0, projectsInData.indexOf(slug)) % PALETTE.length]} />
         </div>
       )}
 
@@ -162,26 +162,40 @@ const MonthBars: React.FC<{ data: { label: string; value: number }[] }> = ({ dat
   );
 };
 
-// ---- GPS scatter (equirectangular, no basemap) ----
-const GpsScatter: React.FC<{ points: { lat: number; lng: number; label: string }[] }> = ({ points }) => {
-  const W = 720, H = 300, pad = 10;
-  const lats = points.map(p => p.lat), lngs = points.map(p => p.lng);
-  let minLat = Math.min(...lats), maxLat = Math.max(...lats), minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-  // pad the bounds so single/close points aren't on the edge
-  const dLat = Math.max(0.5, (maxLat - minLat) * 0.15), dLng = Math.max(0.5, (maxLng - minLng) * 0.15);
-  minLat -= dLat; maxLat += dLat; minLng -= dLng; maxLng += dLng;
-  const x = (lng: number) => pad + ((lng - minLng) / (maxLng - minLng || 1)) * (W - 2 * pad);
-  const y = (lat: number) => pad + (1 - (lat - minLat) / (maxLat - minLat || 1)) * (H - 2 * pad);
+// ---- World map (fixed equirectangular projection + graticule) ----
+const WorldMap: React.FC<{
+  points: { lat: number; lng: number; label: string; project: string }[];
+  colorFor: (slug: string) => string;
+}> = ({ points, colorFor }) => {
+  const W = 720, H = 360;
+  const x = (lng: number) => ((lng + 180) / 360) * W;
+  const y = (lat: number) => ((90 - lat) / 180) * H;
+  const lngLines = [-180, -150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150, 180];
+  const latLines = [-90, -60, -30, 0, 30, 60, 90];
+
   return (
     <div style={{ overflowX: 'auto' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 420, background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 8 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 460, borderRadius: 8, display: 'block' }}>
+        {/* ocean */}
+        <rect x={0} y={0} width={W} height={H} fill="color-mix(in srgb, var(--accent) 8%, var(--card))" stroke="var(--line)" />
+        {/* graticule */}
+        {lngLines.map(v => <line key={`x${v}`} x1={x(v)} y1={0} x2={x(v)} y2={H} stroke="var(--line)" strokeWidth={v === 0 ? 1.2 : 0.5} />)}
+        {latLines.map(v => <line key={`y${v}`} x1={0} y1={y(v)} x2={W} y2={y(v)} stroke="var(--line)" strokeWidth={v === 0 ? 1.2 : 0.5} />)}
+        {/* labels */}
+        {lngLines.filter(v => v % 60 === 0).map(v => (
+          <text key={`lx${v}`} x={x(v) + 2} y={H - 4} fontSize={9} fill="var(--muted)">{v === 0 ? '0°' : `${Math.abs(v)}°${v < 0 ? 'W' : 'E'}`}</text>
+        ))}
+        {latLines.filter(v => v !== 0).map(v => (
+          <text key={`ly${v}`} x={3} y={y(v) - 2} fontSize={9} fill="var(--muted)">{`${Math.abs(v)}°${v < 0 ? 'S' : 'N'}`}</text>
+        ))}
+        {/* points */}
         {points.map((p, i) => (
-          <circle key={i} cx={x(p.lng)} cy={y(p.lat)} r={5} fill="var(--accent2)" fillOpacity={0.7} stroke="var(--accent2)">
+          <circle key={i} cx={x(p.lng)} cy={y(p.lat)} r={4} fill={colorFor(p.project)} fillOpacity={0.75} stroke="var(--bg)" strokeWidth={0.6}>
             <title>{`${p.label} — ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`}</title>
           </circle>
         ))}
       </svg>
-      <div className="muted" style={{ fontSize: '.72rem', marginTop: 4 }}>Lat {minLat.toFixed(2)}–{maxLat.toFixed(2)}, Lng {minLng.toFixed(2)}–{maxLng.toFixed(2)}</div>
+      <div className="muted" style={{ fontSize: '.72rem', marginTop: 4 }}>Equirectangular world projection · {points.length} geotagged entries · hover a point for details</div>
     </div>
   );
 };
@@ -191,7 +205,7 @@ function computeAggregates(entries: Ec5Entry[]) {
   const byProjectMap = new Map<string, number>();
   const speciesMap = new Map<string, number>();
   const monthMap = new Map<string, number>();
-  const gps: { lat: number; lng: number; label: string }[] = [];
+  const gps: { lat: number; lng: number; label: string; project: string }[] = [];
   let withPhoto = 0, analyzed = 0;
 
   for (const e of entries) {
@@ -199,7 +213,7 @@ function computeAggregates(entries: Ec5Entry[]) {
     if (e.photoUrl) withPhoto++;
     if (e.marker?.markerFound) analyzed++;
     if (e.species) speciesMap.set(e.species, (speciesMap.get(e.species) || 0) + 1);
-    if (e.gps) gps.push({ ...e.gps, label: e.title });
+    if (e.gps) gps.push({ ...e.gps, label: e.title, project: e.project });
     const d = e.createdAt || e.uploadedAt;
     if (d && d.length >= 7) monthMap.set(d.slice(0, 7), (monthMap.get(d.slice(0, 7)) || 0) + 1);
   }
