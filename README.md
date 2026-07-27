@@ -4,10 +4,19 @@ A community database for sharing images of organisms and science photographed
 **alongside the AstroBotany calibration marker** — so that physical scale
 (px/mm) and colour are recoverable from an ordinary phone photo.
 
-This is a **static site** (deployable free to GitHub Pages) that reads one or
-more free [**Epicollect5**](https://five.epicollect.net) projects through their
-open API and runs the calibration-marker analysis **entirely in your browser**.
-There is no server and no hosting fee, and no Google GenAI / Gemini dependency.
+This is a **static site** (deployable free to GitHub Pages) that reads image
+sources — free [**Epicollect5**](https://five.epicollect.net) projects and public
+**GitHub** image folders — through their open, CORS-enabled APIs, and runs the
+calibration-marker analysis **entirely in your browser**. There is no server and
+no hosting fee, and no Google GenAI / Gemini dependency.
+
+**Sources.** Add an Epicollect5 project by slug, or paste a GitHub folder URL
+(e.g. `github.com/owner/repo/tree/main/path`) in the **Contribute** tab — its
+images are listed straight from GitHub (raw.githubusercontent.com is CORS-open,
+so detection runs on them too), with metadata parsed from filenames. Epicollect5
+is read-only via its API, so contributions to an Epicollect5 project happen in
+the Epicollect5 app/web form; to push your *own* images + metadata into the
+viewer, commit them to a GitHub repo folder and add it as a source.
 
 The **Database** tab filters entries by *All / With images / Analyzed* and by
 project (toggle chips), and the **Dashboard** tab presents cross-project

@@ -9,12 +9,17 @@
 // at a time or merged with "All".
 
 import type { Ec5Entry, EntryField, MarkerAnalysis } from '../types';
+import { fetchGithubImages, parseGhId, ghUrl, parseFilenameMeta, type GhTarget, type GhFile } from './github';
 
 export const EC5_BASE = 'https://five.epicollect.net';
 export const DEMO_SLUG = 'ec5-api-test';
 export const ALL = '__all__';
 
-export interface ProjectRef { slug: string; name: string; }
+// A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
+// image folder (type 'github', slug prefixed "gh:", details in `gh`).
+export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github'; gh?: GhTarget; }
+
+export const isGithub = (slug: string) => slug.startsWith('gh:');
 
 // CoSE projects known to hold (or will hold) calibration images / experiment data.
 const BUILTIN: ProjectRef[] = [
@@ -50,6 +55,14 @@ export function addProject(slug: string, name?: string): ProjectRef[] {
   if (!getProjects().some(p => p.slug === s)) writeCustom([...readCustom(), { slug: s, name: name?.trim() || prettify(s) }]);
   return getProjects();
 }
+export function addGithubSource(gh: GhTarget, name: string): ProjectRef {
+  const slug = `gh:${gh.owner}/${gh.repo}/${gh.ref}/${gh.path}`;
+  const existing = getProjects().find(p => p.slug === slug);
+  if (existing) return existing;
+  const ref: ProjectRef = { slug, name, type: 'github', gh };
+  writeCustom([...readCustom(), ref]);
+  return ref;
+}
 export function removeProject(slug: string): ProjectRef[] {
   writeCustom(readCustom().filter(p => p.slug !== slug));
   if (getActive() === slug) setActive(getProjects()[0]?.slug || DEMO_SLUG);
@@ -60,7 +73,10 @@ export const isDemoProject = (slug: string) => slug === DEMO_SLUG;
 
 export function projectName(slug: string): string {
   if (slug === ALL) return 'All projects';
-  return getProjects().find(p => p.slug === slug)?.name || slug;
+  const found = getProjects().find(p => p.slug === slug);
+  if (found) return found.name;
+  const gh = parseGhId(slug);
+  return gh ? `${gh.repo} · ${gh.path.split('/').pop() || gh.repo}` : slug;
 }
 
 // Active selection: ?project= wins on load, else stored, else the first project.
@@ -76,7 +92,11 @@ export function setActive(sel: string) {
   try { localStorage.setItem(ACTIVE_KEY, sel); } catch { /* ignore */ }
 }
 
-export const projectUrl = (slug: string) => `${EC5_BASE}/project/${slug}`;
+// Link to a source's home (GitHub folder or Epicollect5 project page).
+export const projectUrl = (slug: string) => {
+  const gh = parseGhId(slug);
+  return gh ? ghUrl(gh) : `${EC5_BASE}/project/${slug}`;
+};
 export const addEntryUrl = (slug: string) => `${EC5_BASE}/project/${slug}/data`;
 
 export interface EntriesPage {
@@ -149,6 +169,19 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
   const hit = pageCache.get(key);
   if (hit && Date.now() - hit.time < TTL_MS) return clone(hit.value);
 
+  // GitHub folder source: one API call lists the folder (cached in github.ts),
+  // then we page over the images client-side.
+  if (isGithub(slug)) {
+    const gh = getProjects().find(p => p.slug === slug)?.gh || parseGhId(slug);
+    if (!gh) throw new Error('bad GitHub source');
+    const files = await fetchGithubImages(gh);
+    const entries = files.map(f => ghEntry(f, slug));
+    const start = (page - 1) * perPage;
+    const value: OnePage = { entries: entries.slice(start, start + perPage), total: entries.length, hasNext: start + perPage < entries.length };
+    pageCache.set(key, { time: Date.now(), value });
+    return clone(value);
+  }
+
   const url = `${EC5_BASE}/api/export/entries/${encodeURIComponent(slug)}?per_page=${perPage}&page=${page}&format=json`;
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (res.status === 429) throw new Error('rate limit reached (5 req/min) — wait a moment');
@@ -211,6 +244,24 @@ export function mapEntry(raw: any, slug: string): Ec5Entry {
     thumbUrl: photoUrl ? photoUrl.replace(/format=[^&]+/, 'format=entry_thumb') : null,
     fields: fields.filter(f => f.key !== titleKey).map(({ name, value }) => ({ name, value })),
     species, gps, marker: null,
+  };
+}
+
+// Map a GitHub image file to an entry (photo = raw URL; metadata from filename).
+function ghEntry(f: GhFile, slug: string): Ec5Entry {
+  const { fields, capturedAt } = parseFilenameMeta(f.name);
+  return {
+    uuid: f.sha || f.path,
+    project: slug,
+    title: f.name,
+    createdAt: capturedAt || '',
+    uploadedAt: capturedAt || '',
+    photoUrl: f.downloadUrl,
+    thumbUrl: f.downloadUrl,
+    fields: [...fields, { name: 'File size', value: `${Math.round(f.size / 1024)} KB` }],
+    species: null,
+    gps: null,
+    marker: null,
   };
 }
 

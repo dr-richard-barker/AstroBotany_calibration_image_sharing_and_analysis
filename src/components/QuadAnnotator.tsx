@@ -46,8 +46,8 @@ export const QuadAnnotator: React.FC<Props> = ({ imageUrl, quad, onChange }) => 
       <img src={imageUrl} alt="annotate" style={{ display: 'block', width: '100%', borderRadius: 8 }} draggable={false} />
       <svg viewBox="0 0 100 100" preserveAspectRatio="none"
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-        <polygon points={poly} fill="color-mix(in srgb, var(--accent2) 22%, transparent)"
-          stroke="var(--accent2)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+        <polygon points={poly} style={{ fill: 'var(--accent2)', stroke: 'var(--accent2)' }}
+          fillOpacity={0.22} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
       </svg>
       {quad.map((p, i) => (
         <button key={i}

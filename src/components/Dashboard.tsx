@@ -162,6 +162,16 @@ const MonthBars: React.FC<{ data: { label: string; value: number }[] }> = ({ dat
   );
 };
 
+// Resolve a CSS custom property to a concrete colour. SVG presentation
+// attributes (fill=/stroke=) do NOT accept var() in Safari/WebKit, so we read
+// the value and pass a literal colour instead — renders in every browser.
+function readVars(names: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  const cs = typeof window !== 'undefined' ? getComputedStyle(document.documentElement) : null;
+  for (const [k, fallback] of Object.entries(names)) out[k] = (cs?.getPropertyValue(k).trim() || fallback);
+  return out;
+}
+
 // ---- World map (fixed equirectangular projection + graticule) ----
 const WorldMap: React.FC<{
   points: { lat: number; lng: number; label: string; project: string }[];
@@ -172,25 +182,26 @@ const WorldMap: React.FC<{
   const y = (lat: number) => ((90 - lat) / 180) * H;
   const lngLines = [-180, -150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150, 180];
   const latLines = [-90, -60, -30, 0, 30, 60, 90];
+  const c = readVars({ '--line': '#e5e9f0', '--muted': '#5a6473', '--accent': '#3b6ea5', '--bg': '#ffffff' });
 
   return (
     <div style={{ overflowX: 'auto' }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 460, borderRadius: 8, display: 'block' }}>
         {/* ocean */}
-        <rect x={0} y={0} width={W} height={H} fill="color-mix(in srgb, var(--accent) 8%, var(--card))" stroke="var(--line)" />
+        <rect x={0} y={0} width={W} height={H} fill={c['--accent']} fillOpacity={0.07} stroke={c['--line']} />
         {/* graticule */}
-        {lngLines.map(v => <line key={`x${v}`} x1={x(v)} y1={0} x2={x(v)} y2={H} stroke="var(--line)" strokeWidth={v === 0 ? 1.2 : 0.5} />)}
-        {latLines.map(v => <line key={`y${v}`} x1={0} y1={y(v)} x2={W} y2={y(v)} stroke="var(--line)" strokeWidth={v === 0 ? 1.2 : 0.5} />)}
+        {lngLines.map(v => <line key={`x${v}`} x1={x(v)} y1={0} x2={x(v)} y2={H} stroke={c['--line']} strokeWidth={v === 0 ? 1.3 : 0.6} />)}
+        {latLines.map(v => <line key={`y${v}`} x1={0} y1={y(v)} x2={W} y2={y(v)} stroke={c['--line']} strokeWidth={v === 0 ? 1.3 : 0.6} />)}
         {/* labels */}
         {lngLines.filter(v => v % 60 === 0).map(v => (
-          <text key={`lx${v}`} x={x(v) + 2} y={H - 4} fontSize={9} fill="var(--muted)">{v === 0 ? '0°' : `${Math.abs(v)}°${v < 0 ? 'W' : 'E'}`}</text>
+          <text key={`lx${v}`} x={x(v) + 2} y={H - 4} fontSize={9} fill={c['--muted']}>{v === 0 ? '0°' : `${Math.abs(v)}°${v < 0 ? 'W' : 'E'}`}</text>
         ))}
         {latLines.filter(v => v !== 0).map(v => (
-          <text key={`ly${v}`} x={3} y={y(v) - 2} fontSize={9} fill="var(--muted)">{`${Math.abs(v)}°${v < 0 ? 'S' : 'N'}`}</text>
+          <text key={`ly${v}`} x={3} y={y(v) - 2} fontSize={9} fill={c['--muted']}>{`${Math.abs(v)}°${v < 0 ? 'S' : 'N'}`}</text>
         ))}
         {/* points */}
         {points.map((p, i) => (
-          <circle key={i} cx={x(p.lng)} cy={y(p.lat)} r={4} fill={colorFor(p.project)} fillOpacity={0.75} stroke="var(--bg)" strokeWidth={0.6}>
+          <circle key={i} cx={x(p.lng)} cy={y(p.lat)} r={4} fill={colorFor(p.project)} fillOpacity={0.8} stroke={c['--bg']} strokeWidth={0.7}>
             <title>{`${p.label} — ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`}</title>
           </circle>
         ))}
