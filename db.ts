@@ -8,7 +8,9 @@ import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 export const ROOT = process.cwd();
-export const DATA_DIR = path.join(ROOT, 'data');
+// DATA_DIR can point at a persistent disk mount (e.g. Render/Fly volume);
+// defaults to ./data for local dev.
+export const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(ROOT, 'data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
