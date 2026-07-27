@@ -10,6 +10,7 @@
 
 import type { Ec5Entry, EntryField, MarkerAnalysis } from '../types';
 import { fetchGithubFolder, parseGhId, ghUrl, parseFilenameMeta, metaFor, type GhTarget, type GhFile } from './github';
+import { loadLocalEntries, deleteLocalSource } from '../lib/localsource';
 
 export const EC5_BASE = 'https://five.epicollect.net';
 export const DEMO_SLUG = 'ec5-api-test';
@@ -17,9 +18,10 @@ export const ALL = '__all__';
 
 // A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
 // image folder (type 'github', slug prefixed "gh:", details in `gh`).
-export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github'; gh?: GhTarget; iss?: boolean; }
+export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local'; gh?: GhTarget; iss?: boolean; }
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
+export const isLocal = (slug: string) => slug.startsWith('local:');
 
 // Images from an ISS payload (e.g. ExoLab): they carry no GPS, so the dashboard
 // can estimate an orbital ground-track position from each timestamp instead.
@@ -75,8 +77,15 @@ export function addGithubSource(gh: GhTarget, name: string, iss?: boolean): Proj
 }
 export function removeProject(slug: string): ProjectRef[] {
   writeCustom(readCustom().filter(p => p.slug !== slug));
+  if (isLocal(slug)) deleteLocalSource(slug.replace(/^local:/, '')).catch(() => {});
   if (getActive() === slug) setActive(getProjects()[0]?.slug || DEMO_SLUG);
   return getProjects();
+}
+export function addLocalSource(id: string, name: string): ProjectRef {
+  const slug = `local:${id}`;
+  const ref: ProjectRef = { slug, name, type: 'local' };
+  if (!getProjects().some(p => p.slug === slug)) writeCustom([...readCustom(), ref]);
+  return ref;
 }
 export const isBuiltin = (slug: string) => BUILTIN.some(p => p.slug === slug);
 export const isDemoProject = (slug: string) => slug === DEMO_SLUG;
@@ -190,6 +199,14 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
     const value: OnePage = { entries: entries.slice(start, start + perPage), total: entries.length, hasNext: start + perPage < entries.length };
     pageCache.set(key, { time: Date.now(), value });
     return clone(value);
+  }
+
+  // Local uploaded source: read from IndexedDB (fresh object URLs each load, so
+  // don't cache — a cached blob: URL can be revoked/stale after a reload).
+  if (isLocal(slug)) {
+    const all = await loadLocalEntries(slug);
+    const start = (page - 1) * perPage;
+    return { entries: all.slice(start, start + perPage), total: all.length, hasNext: start + perPage < all.length };
   }
 
   const url = `${EC5_BASE}/api/export/entries/${encodeURIComponent(slug)}?per_page=${perPage}&page=${page}&format=json`;

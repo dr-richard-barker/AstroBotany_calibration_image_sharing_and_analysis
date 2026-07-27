@@ -27,6 +27,24 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
+// Down-scale + JPEG-compress an image blob for storage/display.
+export async function compressImage(blob: Blob, maxEdge = 1600, quality = 0.82): Promise<{ blob: Blob; width: number; height: number }> {
+  let bmp: ImageBitmap;
+  try { bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' } as ImageBitmapOptions); }
+  catch { bmp = await createImageBitmap(blob); }
+  const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
+  const width = Math.max(1, Math.round(bmp.width * scale));
+  const height = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bmp, 0, 0, width, height);
+  bmp.close?.();
+  const out = await new Promise<Blob>((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('encode failed')), 'image/jpeg', quality));
+  return { blob: out, width, height };
+}
+
 export function humanBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;

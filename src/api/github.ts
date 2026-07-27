@@ -104,6 +104,13 @@ function indexByFilename(rows: Record<string, string>[]): MetaMap {
   return map;
 }
 
+// Parse a sidecar file's text into a filename→record map (shared with uploads).
+export function parseSidecarText(text: string, filename: string): MetaMap {
+  return /\.json$/i.test(filename)
+    ? parseJsonMeta(text)
+    : parseDelimitedMeta(text, /\.tsv$/i.test(filename) ? '\t' : ',');
+}
+
 function parseJsonMeta(text: string): MetaMap {
   const j = JSON.parse(text);
   if (Array.isArray(j)) return indexByFilename(j.map(stringifyValues));

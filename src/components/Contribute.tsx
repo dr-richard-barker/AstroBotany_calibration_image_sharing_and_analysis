@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2 } from 'lucide-react';
-import { addProject, removeProject, addGithubSource, isBuiltin, isGithub, projectUrl, type ProjectRef } from '../api/epicollect';
+import React, { useRef, useState } from 'react';
+import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive } from 'lucide-react';
+import { addProject, removeProject, addGithubSource, addLocalSource, isBuiltin, isGithub, isLocal, projectUrl, type ProjectRef } from '../api/epicollect';
 import { parseGithub, defaultName, fetchGithubImages } from '../api/github';
+import { processUpload } from '../lib/localsource';
 
 interface Props {
   projects: ProjectRef[];
@@ -16,6 +17,26 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
   const [ghUrl, setGhUrl] = useState('');
   const [ghBusy, setGhBusy] = useState(false);
   const [ghMsg, setGhMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [upBusy, setUpBusy] = useState(false);
+  const [upMsg, setUpMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [upProg, setUpProg] = useState<{ done: number; total: number } | null>(null);
+  const [hot, setHot] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const doUpload = async (files: FileList | File[]) => {
+    const arr = Array.from(files);
+    if (!arr.length) return;
+    setUpBusy(true); setUpMsg(null); setUpProg({ done: 0, total: 0 });
+    try {
+      const res = await processUpload(arr, undefined, (done, total) => setUpProg({ done, total }));
+      addLocalSource(res.id, res.name);
+      onProjectsChange();
+      onChangeActive(res.slug);
+      setUpMsg({ ok: true, text: `Prepared ${res.count} images${res.skipped ? ` (${res.skipped} skipped)` : ''} into “${res.name}”.` });
+    } catch (e) {
+      setUpMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally { setUpBusy(false); setUpProg(null); }
+  };
 
   const add = () => {
     if (!slug.trim()) return;
@@ -51,6 +72,33 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
       </div>
 
       <div className="grid" style={{ gap: 16 }}>
+        {/* Upload a zip / images */}
+        <div className="card pad">
+          <div className="card-title"><FileArchive /> Upload images or a .zip</div>
+          <p className="muted" style={{ fontSize: '.82rem', marginTop: -6, marginBottom: 10 }}>
+            Drop a <span className="mono">.zip</span> of images (e.g. downloaded from a Google Drive folder) or pick image files. They’re unzipped and prepared <strong>in your browser</strong> — EXIF (GPS, time, device) is read, each image is compressed, and any <span className="mono">metadata.csv</span>/<span className="mono">.json</span> inside is joined by filename. Saved locally (IndexedDB) as a source you can analyse; nothing is uploaded to a server.
+          </p>
+          <div
+            className={`dropzone ${hot ? 'hot' : ''}`}
+            onDragOver={e => { e.preventDefault(); setHot(true); }}
+            onDragLeave={() => setHot(false)}
+            onDrop={e => { e.preventDefault(); setHot(false); if (e.dataTransfer.files.length) doUpload(e.dataTransfer.files); }}
+          >
+            {upBusy ? (
+              <div className="row" style={{ justifyContent: 'center', gap: 8 }}><Loader2 className="spin" /> Preparing{upProg && upProg.total ? ` ${upProg.done}/${upProg.total}` : ''}…</div>
+            ) : (
+              <>
+                <UploadCloud />
+                <p style={{ margin: '10px 0 6px', fontWeight: 600 }}>Drop a .zip or images here, or</p>
+                <button className="btn btn-primary btn-sm" onClick={() => fileRef.current?.click()}><UploadCloud /> Choose files</button>
+                <input ref={fileRef} type="file" accept=".zip,application/zip,image/*" multiple hidden
+                  onChange={e => e.target.files && doUpload(e.target.files)} />
+              </>
+            )}
+          </div>
+          {upMsg && <div style={{ marginTop: 8, fontSize: '.82rem', color: upMsg.ok ? 'var(--ok)' : 'var(--danger)' }}>{upMsg.text}</div>}
+        </div>
+
         {/* GitHub import */}
         <div className="card pad">
           <div className="card-title"><Github /> Import images from a GitHub folder</div>
@@ -80,11 +128,11 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
                 {projects.map(p => (
                   <tr key={p.slug}>
                     <td>{p.name} {p.slug === active && <span className="badge info" style={{ marginLeft: 4 }}>viewing</span>}</td>
-                    <td>{isGithub(p.slug) ? <span className="chip"><Github size={11} /> GitHub</span> : <span className="chip">Epicollect5</span>}</td>
+                    <td>{isGithub(p.slug) ? <span className="chip"><Github size={11} /> GitHub</span> : isLocal(p.slug) ? <span className="chip"><HardDrive size={11} /> Local</span> : <span className="chip">Epicollect5</span>}</td>
                     <td>
                       <div className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
                         <button className="btn btn-sm btn-ghost" title="View" onClick={() => onChangeActive(p.slug)}><Eye size={14} /></button>
-                        <a className="btn btn-sm btn-ghost" title="Open source" href={projectUrl(p.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14} /></a>
+                        {!isLocal(p.slug) && <a className="btn btn-sm btn-ghost" title="Open source" href={projectUrl(p.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14} /></a>}
                         {!isBuiltin(p.slug) && <button className="btn btn-sm btn-ghost" title="Remove" onClick={() => remove(p.slug)} style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>}
                       </div>
                     </td>

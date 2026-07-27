@@ -10,10 +10,13 @@ sources — free [**Epicollect5**](https://five.epicollect.net) projects and pub
 calibration-marker analysis **entirely in your browser**. There is no server and
 no hosting fee, and no Google GenAI / Gemini dependency.
 
-**Sources.** Add an Epicollect5 project by slug, or paste a GitHub folder URL
-(e.g. `github.com/owner/repo/tree/main/path`) in the **Contribute** tab — its
-images are listed straight from GitHub (raw.githubusercontent.com is CORS-open,
-so detection runs on them too), with metadata parsed from filenames. Epicollect5
+**Sources.** In the **Contribute** tab you can add an Epicollect5 project by slug,
+paste a GitHub folder URL (`github.com/owner/repo/tree/main/path` — images listed
+straight from GitHub, CORS-open so detection runs on them), or **upload a `.zip`
+of images** (e.g. exported from a Google Drive folder) or individual image files.
+Uploads are unzipped, EXIF-read, compressed, and joined to an optional
+`metadata.csv`/`.json` inside — all in your browser — and saved locally
+(IndexedDB) as a source that survives reloads. Nothing is uploaded to a server. Epicollect5
 is read-only via its API, so contributions to an Epicollect5 project happen in
 the Epicollect5 app/web form; to push your *own* images + metadata into the
 viewer, commit them to a GitHub repo folder and add it as a source.
