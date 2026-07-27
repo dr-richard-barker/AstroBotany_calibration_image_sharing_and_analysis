@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, ClipboardList, CheckCircle2, GitCompare, AlertTriangle, Lightbulb, ListChecks, Sparkles } from 'lucide-react';
+import { Loader2, ClipboardList, CheckCircle2, GitCompare, AlertTriangle, Lightbulb, ListChecks, Sparkles, FileJson, Table } from 'lucide-react';
 import { getProjects, isGithub, isLocal, projectName } from '../api/epicollect';
 import { fetchProjectQuestions, analyze, LESSONS, RECOMMENDATIONS, type ReviewResult, type Question } from '../lib/metadata-review';
+import { buildEc5Template, templateCsv, TEMPLATE_FIELDS, download } from '../lib/form-template';
 
 const CAT_ORDER = ['Identity', 'Organism', 'Environment', 'Timing', 'Light', 'Climate', 'Substrate', 'Phenotype', 'Imaging', 'Protocol', 'Notes'];
 
@@ -144,8 +145,20 @@ export const MetadataReview: React.FC = () => {
       </div>
 
       <div className="card pad">
-        <div className="card-title"><ListChecks /> Recommended metadata for future projects</div>
-        <p className="muted" style={{ fontSize: '.8rem', marginTop: -6, marginBottom: 12 }}>A concept checklist to consider when designing the next Epicollect5 form, so data can be compared and merged across studies.</p>
+        <div className="card-title sb" style={{ justifyContent: 'space-between' }}>
+          <span className="row" style={{ gap: 8 }}><ListChecks /> Recommended metadata for future projects</span>
+          <span className="row wrap" style={{ gap: 6 }}>
+            <button className="btn btn-sm btn-primary" onClick={() => download('astrobotany_epicollect5_form_template.json', JSON.stringify(buildEc5Template(), null, 2), 'application/json')}>
+              <FileJson size={14} /> Epicollect5 form template (JSON)
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={() => download('astrobotany_form_template.csv', templateCsv(), 'text/csv')}>
+              <Table size={14} /> CSV
+            </button>
+          </span>
+        </div>
+        <p className="muted" style={{ fontSize: '.8rem', marginTop: 2, marginBottom: 12 }}>
+          A concept checklist to consider when designing the next Epicollect5 form, so data can be compared and merged across studies. Download it as a ready-to-build <strong>Epicollect5 form template</strong> ({TEMPLATE_FIELDS.length} questions with types &amp; option lists, in Epicollect5’s project-structure format) or a plain CSV to build by hand in the form builder.
+        </p>
         <table className="data">
           <thead><tr><th>Category</th><th>Concept</th><th>Why</th><th>Example question(s)</th></tr></thead>
           <tbody>
