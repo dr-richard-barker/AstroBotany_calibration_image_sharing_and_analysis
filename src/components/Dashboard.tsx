@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Loader2, Images, ImageIcon, Sprout, MapPin, CalendarRange, FolderTree, CheckCircle2, Satellite } from 'lucide-react';
+import { BarChart3, Loader2, Images, ImageIcon, Sprout, MapPin, CalendarRange, FolderTree, CheckCircle2, Satellite, LineChart } from 'lucide-react';
 import type { Ec5Entry } from '../types';
 import { fetchAllComplete, getProjects, projectName, isIssSource } from '../api/epicollect';
 import { issPosition, issTrack, ISS_INCLINATION } from '../lib/iss';
+import { allResults, type AnalysisResult } from '../lib/cose-results';
 
 // A palette derived from the CoSE accent pair, cycled for categorical series.
 const PALETTE = ['#3b6ea5', '#3fb6a8', '#6a8ec2', '#57c2b4', '#8aa9cf', '#7bccc0', '#b7791f', '#9c6ea0'];
@@ -41,6 +42,16 @@ export const Dashboard: React.FC = () => {
     const track = points.length ? issTrack(earliest) : [];
     return { points, track };
   }, [data]);
+
+  // Tool results (shared same-origin store), aggregated across the loaded images.
+  const [toolResults, setToolResults] = useState<AnalysisResult[]>([]);
+  useEffect(() => {
+    const load = () => allResults().then(setToolResults).catch(() => {});
+    load();
+    window.addEventListener('focus', load); // pick up results written while a tool tab was open
+    return () => window.removeEventListener('focus', load);
+  }, []);
+  const resultSummary = useMemo(() => summariseResults(toolResults, data), [toolResults, data]);
 
   // Field explorer
   const [expProject, setExpProject] = useState<string>('');
@@ -103,6 +114,31 @@ export const Dashboard: React.FC = () => {
             : <p className="muted" style={{ fontSize: '.85rem' }}>No species field detected in these entries.</p>}
         </div>
       </div>
+
+      {resultSummary.length > 0 && (
+        <div className="card pad" style={{ marginBottom: 16 }}>
+          <div className="card-title"><LineChart /> Analysis results summary</div>
+          <p className="muted" style={{ fontSize: '.8rem', marginTop: -6, marginBottom: 12 }}>Averaged across images analysed by the sibling tools and written back to the shared store.</p>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))' }}>
+            {resultSummary.map((t, i) => (
+              <div key={t.tool} className="card pad" style={{ background: 'var(--bg)' }}>
+                <div className="row sb" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+                  <strong style={{ fontSize: '.9rem', color: PALETTE[i % PALETTE.length] }}>{t.toolName}</strong>
+                  <span className="chip">{t.images} image{t.images === 1 ? '' : 's'}</span>
+                </div>
+                <dl className="kv">
+                  {t.metrics.map(m => (
+                    <React.Fragment key={m.k}>
+                      <dt>{m.k}</dt>
+                      <dd>{m.mean.toFixed(m.mean >= 100 ? 0 : 2)}{m.unit ? ` ${m.unit}` : ''} <span className="muted">· n={m.n}</span></dd>
+                    </React.Fragment>
+                  ))}
+                </dl>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card pad" style={{ marginBottom: 16 }}>
         <div className="card-title"><CalendarRange /> Entries over time</div>
@@ -308,6 +344,31 @@ function fillMonths(m: Map<string, number>): { label: string; value: number }[] 
     mo++; if (mo > 12) { mo = 1; y++; }
   }
   return out;
+}
+
+// Aggregate tool results across the loaded (and project-toggle-enabled) images:
+// per tool, the mean of each numeric metric (parsing a leading number + unit).
+function summariseResults(results: AnalysisResult[], entries: Ec5Entry[]) {
+  const enabled = new Set(entries.map(e => `${e.project}::${e.uuid}`));
+  const rel = results.filter(r => enabled.has(r.ref));
+  const byTool = new Map<string, { toolName: string; refs: Set<string>; metrics: Map<string, { sum: number; n: number; unit: string }> }>();
+  for (const r of rel) {
+    let g = byTool.get(r.tool);
+    if (!g) { g = { toolName: r.toolName, refs: new Set(), metrics: new Map() }; byTool.set(r.tool, g); }
+    g.refs.add(r.ref);
+    for (const [k, v] of Object.entries(r.metrics)) {
+      const num = parseFloat(String(v));
+      if (Number.isNaN(num)) continue;
+      const unit = String(v).replace(/^[+\-\d.,]+\s*/, '').trim();
+      let m = g.metrics.get(k);
+      if (!m) { m = { sum: 0, n: 0, unit }; g.metrics.set(k, m); }
+      m.sum += num; m.n++;
+    }
+  }
+  return [...byTool.entries()].map(([tool, g]) => ({
+    tool, toolName: g.toolName, images: g.refs.size,
+    metrics: [...g.metrics.entries()].map(([k, m]) => ({ k, mean: m.sum / m.n, n: m.n, unit: m.unit })),
+  }));
 }
 
 function fieldNames(entries: Ec5Entry[]): string[] {
