@@ -6,7 +6,7 @@ export interface ToolRef { name: string; sub: string; url: string; icon: LucideI
 
 export const TOOLS: ToolRef[] = [
   { name: 'AstroRoot', sub: 'Root tracing', url: 'https://dr-richard-barker.github.io/astroroot/', icon: Sprout, imgParam: 'image' },
-  { name: 'Anthocyanin', sub: 'Colour analysis', url: 'https://dr-richard-barker.github.io/Anthocyanin-Image-analysis/', icon: FlaskConical, imgParam: 'image' },
+  { name: 'Leaf Pigment & Size', sub: 'Pigment · leaf area', url: 'https://dr-richard-barker.github.io/Anthocyanin-Image-analysis/', icon: FlaskConical, imgParam: 'image' },
 ];
 
 export const toolUrl = (base: string, param: string, imageUrl?: string) =>
