@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Database as DbIcon, CheckCircle2, Images, ImageIcon, Loader2, ChevronDown, FileText, LineChart } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Database as DbIcon, CheckCircle2, Images, ImageIcon, Loader2, ChevronDown, FileText, LineChart, Crosshair } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis } from '../types';
 import { MarkerInspector } from './MarkerInspector';
-import { projectName } from '../api/epicollect';
+import { projectName, saveMarker } from '../api/epicollect';
 import { allResults } from '../lib/cose-results';
+import { urlToImageData } from '../lib/capture';
+import { analyzeMarker } from '../lib/detect';
 
 interface Props {
   entries: Ec5Entry[];
@@ -22,6 +24,35 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
   const [filter, setFilter] = useState<Filter>('all');
   const [disabled, setDisabled] = useState<Set<string>>(new Set()); // projects toggled off
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Batch marker derivation: auto-detect the calibration marker across loaded
+  // photos so every entry gets a marker-present signal without manual clicks.
+  const [derive, setDerive] = useState<{ done: number; total: number } | null>(null);
+  const aliveRef = useRef(true);
+  useEffect(() => () => { aliveRef.current = false; }, []);
+  const pending = useMemo(() => entries.filter(e => e.photoUrl && !e.marker), [entries]);
+
+  const runDerive = async () => {
+    if (!pending.length || derive) return;
+    aliveRef.current = true;
+    const queue = [...pending];
+    setDerive({ done: 0, total: queue.length });
+    let done = 0, idx = 0;
+    const worker = async () => {
+      while (idx < queue.length && aliveRef.current) {
+        const e = queue[idx++];
+        try {
+          const m = await analyzeMarker(await urlToImageData(e.photoUrl!));
+          if (!aliveRef.current) return;
+          saveMarker(e.project, e.uuid, m);
+          onMarkerChanged(e.uuid, m);
+        } catch { /* skip unreadable image */ }
+        setDerive({ done: ++done, total: queue.length });
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]); // 3 concurrent
+    if (aliveRef.current) setDerive(null);
+  };
 
   // Which images have tool results (ref -> count), from the shared store.
   const [resultCounts, setResultCounts] = useState<Map<string, number>>(new Map());
@@ -70,7 +101,16 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
           <button className={`btn btn-sm ${filter === 'withPhoto' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('withPhoto')}><ImageIcon /> With images ({withPhoto})</button>
           <button className={`btn btn-sm ${filter === 'analyzed' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('analyzed')}><CheckCircle2 /> Analyzed ({analyzed})</button>
         </div>
-        <span className="muted" style={{ fontSize: '.82rem' }}>{filtered.length} shown</span>
+        <div className="row" style={{ gap: 10 }}>
+          {derive ? (
+            <span className="row muted" style={{ gap: 6, fontSize: '.82rem' }}><Loader2 className="spin" size={14} /> Detecting {derive.done}/{derive.total}…</span>
+          ) : pending.length > 0 ? (
+            <button className="btn btn-sm" onClick={runDerive} title="Auto-detect the calibration marker in every loaded photo (derives the marker-present badge)">
+              <Crosshair size={14} /> Detect markers ({pending.length})
+            </button>
+          ) : null}
+          <span className="muted" style={{ fontSize: '.82rem' }}>{filtered.length} shown</span>
+        </div>
       </div>
 
       {showProject && projectsInView.length > 1 && (
