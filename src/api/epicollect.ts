@@ -92,9 +92,10 @@ export async function fetchEntriesPage(slug: string, page = 1, perPage = 50): Pr
   return { entries: hydrate(entries), total, page, hasNext, errors: [] };
 }
 
-// "All": first page of every project, merged newest-first. Per-project failures
-// are collected rather than failing the whole load.
-export async function fetchAllPage(slugs: string[], perPage = 50): Promise<EntriesPage> {
+// "All": every project merged newest-first (per_page 500 = one request each for
+// projects up to 500 entries, and shares cache keys with the Dashboard's
+// fetchAllComplete). Per-project failures are collected, not fatal.
+export async function fetchAllPage(slugs: string[], perPage = 500): Promise<EntriesPage> {
   const results = await Promise.allSettled(slugs.map(s => fetchOne(s, 1, perPage)));
   const entries: Ec5Entry[] = [];
   const errors: string[] = [];
@@ -130,7 +131,24 @@ export async function fetchAllComplete(slugs: string[], perPage = 500, maxPages 
   return { entries: hydrate(all), errors };
 }
 
-async function fetchOne(slug: string, page: number, perPage: number): Promise<{ entries: Ec5Entry[]; total: number; hasNext: boolean }> {
+// --- short-lived request cache -------------------------------------------
+// A page fetch is keyed by slug|page|perPage and reused for TTL_MS, so flipping
+// between the Database and Dashboard (which request the same pages) doesn't
+// re-hit Epicollect5's ~5 req/min limit. Marker analysis is applied *after* the
+// cache (via hydrate), so locally-saved analysis always shows even on a cache
+// hit. Cached values are cloned on read so callers can't mutate the store.
+type OnePage = { entries: Ec5Entry[]; total: number; hasNext: boolean };
+const TTL_MS = 90_000;
+const pageCache = new Map<string, { time: number; value: OnePage }>();
+const clone = (v: OnePage): OnePage => ({ ...v, entries: v.entries.map(e => ({ ...e })) });
+
+export function clearCache() { pageCache.clear(); }
+
+async function fetchOne(slug: string, page: number, perPage: number): Promise<OnePage> {
+  const key = `${slug}|${page}|${perPage}`;
+  const hit = pageCache.get(key);
+  if (hit && Date.now() - hit.time < TTL_MS) return clone(hit.value);
+
   const url = `${EC5_BASE}/api/export/entries/${encodeURIComponent(slug)}?per_page=${perPage}&page=${page}&format=json`;
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (res.status === 429) throw new Error('rate limit reached (5 req/min) — wait a moment');
@@ -141,7 +159,9 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<{ 
   }
   const j = await res.json();
   const raw: any[] = j?.data?.entries ?? [];
-  return { entries: raw.map(e => mapEntry(e, slug)), total: j?.meta?.total ?? raw.length, hasNext: Boolean(j?.links?.next) };
+  const value: OnePage = { entries: raw.map(e => mapEntry(e, slug)), total: j?.meta?.total ?? raw.length, hasNext: Boolean(j?.links?.next) };
+  pageCache.set(key, { time: Date.now(), value });
+  return clone(value);
 }
 
 const RESERVED = new Set(['ec5_uuid', 'created_at', 'uploaded_at', 'title']);

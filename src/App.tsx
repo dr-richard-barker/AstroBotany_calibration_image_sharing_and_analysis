@@ -53,7 +53,7 @@ export default function App() {
     setLoading(true); if (replace) setErrors([]);
     try {
       const res = sel === ALL
-        ? await fetchAllPage(getProjects().map(p => p.slug), PER_PAGE)
+        ? await fetchAllPage(getProjects().map(p => p.slug))
         : await fetchEntriesPage(sel, targetPage, PER_PAGE);
       setEntries(prev => (replace ? res.entries : [...prev, ...res.entries]));
       setPage(res.page); setHasNext(res.hasNext); setTotalAvailable(res.total);
