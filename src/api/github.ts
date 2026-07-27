@@ -36,13 +36,18 @@ export function defaultName(t: GhTarget): string {
   return last ? `${t.repo} · ${last}` : t.repo;
 }
 
-const folderCache = new Map<string, { time: number; files: GhFile[] }>();
-const TTL_MS = 5 * 60_000;
+// Per-image metadata keyed by (normalised) filename, from a sidecar file.
+export type MetaMap = Map<string, Record<string, string>>;
+export interface GhFolder { images: GhFile[]; meta: MetaMap; metaFile: string | null; }
 
-export async function fetchGithubImages(t: GhTarget): Promise<GhFile[]> {
+const folderCache = new Map<string, { time: number; folder: GhFolder }>();
+const TTL_MS = 5 * 60_000;
+const META_RE = /^(metadata|data|images?)\.(csv|tsv|json)$/i;
+
+export async function fetchGithubFolder(t: GhTarget): Promise<GhFolder> {
   const key = ghId(t);
   const hit = folderCache.get(key);
-  if (hit && Date.now() - hit.time < TTL_MS) return hit.files;
+  if (hit && Date.now() - hit.time < TTL_MS) return hit.folder;
 
   const path = t.path.split('/').map(encodeURIComponent).join('/');
   const url = `https://api.github.com/repos/${t.owner}/${t.repo}/contents/${path}?ref=${encodeURIComponent(t.ref)}`;
@@ -52,11 +57,98 @@ export async function fetchGithubImages(t: GhTarget): Promise<GhFile[]> {
   if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
   const j = await res.json();
   if (!Array.isArray(j)) throw new Error('That path is a file, not a folder');
-  const files: GhFile[] = j
+
+  const images: GhFile[] = j
     .filter((f: any) => f.type === 'file' && IMG_RE.test(f.name) && f.download_url)
     .map((f: any) => ({ name: f.name, path: f.path, downloadUrl: f.download_url, size: f.size, sha: f.sha }));
-  folderCache.set(key, { time: Date.now(), files });
-  return files;
+
+  let meta: MetaMap = new Map();
+  let metaFile: string | null = null;
+  const sidecar = j.find((f: any) => f.type === 'file' && META_RE.test(f.name) && f.download_url);
+  if (sidecar) {
+    try {
+      const text = await (await fetch(sidecar.download_url)).text();
+      meta = /\.json$/i.test(sidecar.name) ? parseJsonMeta(text) : parseDelimitedMeta(text, /\.tsv$/i.test(sidecar.name) ? '\t' : ',');
+      if (meta.size) metaFile = sidecar.name;
+    } catch { /* sidecar unreadable — ignore */ }
+  }
+
+  const folder: GhFolder = { images, meta, metaFile };
+  folderCache.set(key, { time: Date.now(), folder });
+  return folder;
+}
+
+// Back-compat: just the images (used to validate a folder before adding it).
+export async function fetchGithubImages(t: GhTarget): Promise<GhFile[]> {
+  return (await fetchGithubFolder(t)).images;
+}
+
+// Look up a record for an image by full name, then by basename (no extension).
+export function metaFor(meta: MetaMap, filename: string): Record<string, string> | undefined {
+  return meta.get(filename.toLowerCase()) || meta.get(filename.toLowerCase().replace(/\.[^.]+$/, ''));
+}
+
+const FILE_KEY_RE = /^(file|filename|image|images|photo|name|img)$/i;
+
+function indexByFilename(rows: Record<string, string>[]): MetaMap {
+  const map: MetaMap = new Map();
+  for (const row of rows) {
+    const keyCol = Object.keys(row).find(k => FILE_KEY_RE.test(k.trim()));
+    const fname = keyCol ? String(row[keyCol]).trim() : '';
+    if (!fname) continue;
+    const rec: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row)) if (!FILE_KEY_RE.test(k.trim())) rec[k.trim()] = v;
+    map.set(fname.toLowerCase(), rec);
+    map.set(fname.toLowerCase().replace(/\.[^.]+$/, ''), rec);
+  }
+  return map;
+}
+
+function parseJsonMeta(text: string): MetaMap {
+  const j = JSON.parse(text);
+  if (Array.isArray(j)) return indexByFilename(j.map(stringifyValues));
+  // object keyed by filename → { "img.jpg": {species: …}, … }
+  const map: MetaMap = new Map();
+  for (const [fname, rec] of Object.entries(j)) {
+    const r = stringifyValues(rec as any);
+    map.set(fname.toLowerCase(), r);
+    map.set(fname.toLowerCase().replace(/\.[^.]+$/, ''), r);
+  }
+  return map;
+}
+function stringifyValues(o: any): Record<string, string> {
+  const r: Record<string, string> = {};
+  for (const [k, v] of Object.entries(o || {})) r[k] = v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+  return r;
+}
+
+// Minimal delimited parser with quoted-field support.
+function parseDelimitedMeta(text: string, delim: string): MetaMap {
+  const rows = splitRows(text);
+  if (rows.length < 2) return new Map();
+  const headers = splitLine(rows[0], delim).map(h => h.trim());
+  const objs = rows.slice(1).filter(r => r.trim()).map(line => {
+    const cells = splitLine(line, delim);
+    const o: Record<string, string> = {};
+    headers.forEach((h, i) => { o[h] = (cells[i] ?? '').trim(); });
+    return o;
+  });
+  return indexByFilename(objs);
+}
+function splitRows(text: string): string[] {
+  return text.replace(/\r\n?/g, '\n').split('\n');
+}
+function splitLine(line: string, delim: string): string[] {
+  const out: string[] = []; let cur = ''; let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === delim) { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
 }
 
 // Pull metadata encoded in a filename (the ExoLab imaging rig style:

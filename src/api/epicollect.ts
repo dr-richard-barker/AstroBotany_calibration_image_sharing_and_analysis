@@ -9,7 +9,7 @@
 // at a time or merged with "All".
 
 import type { Ec5Entry, EntryField, MarkerAnalysis } from '../types';
-import { fetchGithubImages, parseGhId, ghUrl, parseFilenameMeta, type GhTarget, type GhFile } from './github';
+import { fetchGithubFolder, parseGhId, ghUrl, parseFilenameMeta, metaFor, type GhTarget, type GhFile } from './github';
 
 export const EC5_BASE = 'https://five.epicollect.net';
 export const DEMO_SLUG = 'ec5-api-test';
@@ -174,8 +174,8 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
   if (isGithub(slug)) {
     const gh = getProjects().find(p => p.slug === slug)?.gh || parseGhId(slug);
     if (!gh) throw new Error('bad GitHub source');
-    const files = await fetchGithubImages(gh);
-    const entries = files.map(f => ghEntry(f, slug));
+    const { images, meta } = await fetchGithubFolder(gh);
+    const entries = images.map(f => ghEntry(f, slug, metaFor(meta, f.name)));
     const start = (page - 1) * perPage;
     const value: OnePage = { entries: entries.slice(start, start + perPage), total: entries.length, hasNext: start + perPage < entries.length };
     pageCache.set(key, { time: Date.now(), value });
@@ -247,21 +247,37 @@ export function mapEntry(raw: any, slug: string): Ec5Entry {
   };
 }
 
-// Map a GitHub image file to an entry (photo = raw URL; metadata from filename).
-function ghEntry(f: GhFile, slug: string): Ec5Entry {
-  const { fields, capturedAt } = parseFilenameMeta(f.name);
+// Map a GitHub image file to an entry. Photo = raw URL; metadata comes from an
+// optional sidecar record (metadata.csv/.json joined by filename) plus anything
+// encoded in the filename.
+function ghEntry(f: GhFile, slug: string, meta?: Record<string, string>): Ec5Entry {
+  const fromName = parseFilenameMeta(f.name);
+  const fields: EntryField[] = [...fromName.fields];
+  let species: string | null = null;
+  let gps: { lat: number; lng: number } | null = null;
+  let capturedAt = fromName.capturedAt;
+  let title = f.name;
+  let lat: number | null = null, lng: number | null = null;
+
+  if (meta) {
+    for (const [k, v] of Object.entries(meta)) {
+      if (!v) continue;
+      if (/^(title|label|caption)$/i.test(k)) { title = v; continue; }
+      if (/^(lat|latitude)$/i.test(k)) { const n = parseFloat(v); if (!Number.isNaN(n)) lat = n; continue; }
+      if (/^(lon|lng|long|longitude)$/i.test(k)) { const n = parseFloat(v); if (!Number.isNaN(n)) lng = n; continue; }
+      if (/speci|taxon|plant|organism/i.test(k) && !species) species = v;
+      if (/date|time|captured/i.test(k)) { const d = new Date(v); if (!isNaN(d.getTime())) capturedAt = d.toISOString(); }
+      fields.push({ name: prettify(k), value: v });
+    }
+    if (lat != null && lng != null) gps = { lat, lng };
+  }
+
+  fields.push({ name: 'File size', value: `${Math.round(f.size / 1024)} KB` });
   return {
-    uuid: f.sha || f.path,
-    project: slug,
-    title: f.name,
-    createdAt: capturedAt || '',
-    uploadedAt: capturedAt || '',
-    photoUrl: f.downloadUrl,
-    thumbUrl: f.downloadUrl,
-    fields: [...fields, { name: 'File size', value: `${Math.round(f.size / 1024)} KB` }],
-    species: null,
-    gps: null,
-    marker: null,
+    uuid: f.sha || f.path, project: slug, title,
+    createdAt: capturedAt || '', uploadedAt: capturedAt || '',
+    photoUrl: f.downloadUrl, thumbUrl: f.downloadUrl,
+    fields, species, gps, marker: null,
   };
 }
 

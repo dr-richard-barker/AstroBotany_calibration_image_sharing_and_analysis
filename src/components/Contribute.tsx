@@ -55,7 +55,7 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
         <div className="card pad">
           <div className="card-title"><Github /> Import images from a GitHub folder</div>
           <p className="muted" style={{ fontSize: '.82rem', marginTop: -6, marginBottom: 10 }}>
-            Paste a link to a folder of images in any public repo. Every image is listed straight from GitHub (no upload, no copy), with metadata parsed from filenames — and marker detection runs on them just like uploaded photos.
+            Paste a link to a folder of images in any public repo. Every image is listed straight from GitHub (no upload, no copy) and marker detection runs on them. Drop a <span className="mono">metadata.csv</span> or <span className="mono">metadata.json</span> in the folder to attach per-image metadata: a <span className="mono">filename</span> column joins rows to images, and <span className="mono">species</span>, <span className="mono">latitude</span>/<span className="mono">longitude</span>, <span className="mono">title</span>, and any other columns are picked up automatically.
           </p>
           <div className="row wrap" style={{ gap: 8, alignItems: 'flex-end' }}>
             <div className="field" style={{ flex: '1 1 320px', marginBottom: 0 }}><label>GitHub folder URL</label>
