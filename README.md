@@ -80,6 +80,8 @@ for the built-in `node:sqlite` module (pinned via `.node-version`).
 
 ### Render (one-click blueprint)
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/dr-richard-barker/AstroBotany_calibration_image_sharing_and_analysis)
+
 A [`render.yaml`](./render.yaml) blueprint is included.
 
 1. Push to GitHub (the blueprint targets the `main` branch).
