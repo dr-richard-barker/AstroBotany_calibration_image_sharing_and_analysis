@@ -21,6 +21,8 @@ const BUILTIN: ProjectRef[] = [
   { slug: 'clinostat-collaboration', name: 'Clinostat Collaboration' },
   { slug: 'airi-microgreen-growth-biomass-analysis', name: 'AIRI Microgreen Growth & Biomass' },
   { slug: 'growing-beyond-earth-2021-2022', name: 'Growing Beyond Earth 2021–2022' },
+  { slug: 'nasa-roots', name: 'NASA Roots' },
+  { slug: 'the-spacechilechallenge-cose', name: 'The SpaceChileChallenge' },
 ];
 
 const CUSTOM_KEY = 'ec5-projects'; // user-added ProjectRef[]
