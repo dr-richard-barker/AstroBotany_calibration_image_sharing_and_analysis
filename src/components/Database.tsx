@@ -20,9 +20,16 @@ interface Props {
 
 type Filter = 'all' | 'withPhoto' | 'analyzed';
 
+// Genotype/line of an entry, if its metadata carries one (from a sidecar column
+// named genotype/ecotype/cultivar/line). Generic — projects without such a field
+// simply have no genotypes to filter by.
+const genoOf = (e: Ec5Entry): string =>
+  e.fields.find(f => /^(genotype|ecotype|cultivar|accession|line|strain)$/i.test(f.name.trim()))?.value.trim() || '';
+
 export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged, onOpenTool }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [disabled, setDisabled] = useState<Set<string>>(new Set()); // projects toggled off
+  const [disabledGeno, setDisabledGeno] = useState<Set<string>>(new Set()); // genotypes toggled off
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Batch marker derivation: auto-detect the calibration marker across loaded
@@ -68,17 +75,20 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
   }, []);
 
   const projectsInView = useMemo(() => [...new Set(entries.map(e => e.project))], [entries]);
+  const genotypesInView = useMemo(() => [...new Set(entries.map(genoOf).filter(Boolean))].sort(), [entries]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return entries.filter(e => {
       if (disabled.has(e.project)) return false;
+      const g = genoOf(e);
+      if (g && disabledGeno.has(g)) return false;
       if (filter === 'withPhoto' && !e.photoUrl) return false;
       if (filter === 'analyzed' && !e.marker?.markerFound) return false;
       if (!q) return true;
       return [e.title, e.species, ...e.fields.map(f => f.value)].filter(Boolean).join(' ').toLowerCase().includes(q);
     });
-  }, [entries, query, filter, disabled]);
+  }, [entries, query, filter, disabled, disabledGeno]);
 
   const selected = filtered.find(e => e.uuid === selectedId) || null;
   const withPhoto = entries.filter(e => e.photoUrl).length;
@@ -86,6 +96,8 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
 
   const toggleProject = (slug: string) =>
     setDisabled(prev => { const n = new Set(prev); n.has(slug) ? n.delete(slug) : n.add(slug); return n; });
+  const toggleGeno = (g: string) =>
+    setDisabledGeno(prev => { const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n; });
 
   return (
     <div>
@@ -132,6 +144,31 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
               </button>
             );
           })}
+        </div>
+      )}
+
+      {genotypesInView.length > 1 && (
+        <div className="row wrap" style={{ gap: 6, marginBottom: 14, alignItems: 'center' }}>
+          <span className="muted" style={{ fontSize: '.76rem', marginRight: 2 }}>Genotype:</span>
+          {genotypesInView.map(g => {
+            const on = !disabledGeno.has(g);
+            const n = entries.filter(e => genoOf(e) === g).length;
+            return (
+              <button key={g} onClick={() => toggleGeno(g)}
+                className="chip" style={{
+                  cursor: 'pointer',
+                  background: on ? 'color-mix(in srgb, var(--accent2) 15%, transparent)' : 'var(--card)',
+                  color: on ? 'var(--accent2)' : 'var(--muted)',
+                  borderColor: on ? 'color-mix(in srgb, var(--accent2) 40%, transparent)' : 'var(--line)',
+                  opacity: on ? 1 : 0.6,
+                }}>
+                {on ? <CheckCircle2 size={12} /> : null} {g} ({n})
+              </button>
+            );
+          })}
+          {disabledGeno.size > 0 && (
+            <button className="btn btn-sm btn-ghost" style={{ padding: '2px 8px', fontSize: '.72rem' }} onClick={() => setDisabledGeno(new Set())}>Reset</button>
+          )}
         </div>
       )}
 
