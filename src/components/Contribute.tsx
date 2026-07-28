@@ -1,8 +1,10 @@
 import React, { useRef, useState } from 'react';
-import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download, FolderSearch, Table, Sparkles } from 'lucide-react';
+import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download, FolderSearch, Table, Sparkles, Cloud, Users } from 'lucide-react';
 import { addProject, removeProject, addGithubSource, addLocalSource, isBuiltin, isGithub, isLocal, projectUrl, type ProjectRef } from '../api/epicollect';
 import { parseGithub, defaultName, fetchGithubImages, parseGithubRepo, scanRepo, type RepoScan } from '../api/github';
 import { processUpload } from '../lib/localsource';
+import { authConfigured } from '../lib/supabase';
+import { uploadToCloud, CLOUD_SLUG, isCloud } from '../lib/uploads';
 
 interface Props {
   projects: ProjectRef[];
@@ -37,6 +39,27 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
   const [upProg, setUpProg] = useState<{ done: number; total: number } | null>(null);
   const [hot, setHot] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Shared cloud upload
+  const [cloudFiles, setCloudFiles] = useState<File[]>([]);
+  const [cloudSpecies, setCloudSpecies] = useState('');
+  const [cloudNotes, setCloudNotes] = useState('');
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [cloudProg, setCloudProg] = useState<{ done: number; total: number } | null>(null);
+  const [cloudMsg, setCloudMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const doCloudUpload = async () => {
+    if (!cloudFiles.length) return;
+    setCloudBusy(true); setCloudMsg(null); setCloudProg({ done: 0, total: cloudFiles.length });
+    try {
+      const n = await uploadToCloud(cloudFiles, { species: cloudSpecies || undefined, notes: cloudNotes || undefined }, (done, total) => setCloudProg({ done, total }));
+      onProjectsChange();
+      if (n > 0) onChangeActive(CLOUD_SLUG);
+      setCloudMsg({ ok: n > 0, text: n === cloudFiles.length ? `Shared ${n} image${n === 1 ? '' : 's'} to the community database.` : `Shared ${n} of ${cloudFiles.length} (some failed — check console).` });
+      setCloudFiles([]); setCloudSpecies(''); setCloudNotes('');
+    } catch (e) {
+      setCloudMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally { setCloudBusy(false); setCloudProg(null); }
+  };
   // Repo scan
   const [repoInput, setRepoInput] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -132,6 +155,34 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
       </div>
 
       <div className="grid" style={{ gap: 16 }}>
+        {/* Share to the shared cloud database (only when login is configured) */}
+        {authConfigured && (
+          <div className="card pad" style={{ borderColor: 'var(--accent2)' }}>
+            <div className="card-title"><Cloud /> Share images to the community database</div>
+            <p className="muted" style={{ fontSize: '.85rem', marginTop: -4, marginBottom: 12 }}>
+              Upload your calibrated photos to the shared collection — <Users size={12} style={{ verticalAlign: -1 }} /> everyone signed in can see them, marker analysis runs in each viewer’s browser, and an admin can hide or remove any of them. Images are compressed here before upload.
+            </p>
+            <div className="row wrap" style={{ gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <label className="btn btn-sm">
+                <ImagePlus size={14} /> Choose images
+                <input type="file" accept="image/*" multiple hidden disabled={cloudBusy}
+                  onChange={e => { setCloudFiles(Array.from(e.target.files || [])); setCloudMsg(null); }} />
+              </label>
+              <span className="muted" style={{ fontSize: '.82rem' }}>{cloudFiles.length ? `${cloudFiles.length} selected` : 'no files selected'}</span>
+            </div>
+            <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
+              <input className="input" style={{ flex: '1 1 200px' }} placeholder="Species / cultivar (optional)" value={cloudSpecies} onChange={e => setCloudSpecies(e.target.value)} disabled={cloudBusy} />
+              <input className="input" style={{ flex: '2 1 260px' }} placeholder="Notes (optional)" value={cloudNotes} onChange={e => setCloudNotes(e.target.value)} disabled={cloudBusy} />
+            </div>
+            <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <button className="btn btn-teal btn-sm" disabled={!cloudFiles.length || cloudBusy} onClick={doCloudUpload}>
+                {cloudBusy ? <Loader2 className="spin" size={14} /> : <UploadCloud size={14} />} {cloudBusy ? 'Uploading…' : 'Upload to shared database'}
+              </button>
+              {cloudProg && <span className="muted" style={{ fontSize: '.82rem' }}>{cloudProg.done}/{cloudProg.total}</span>}
+            </div>
+            {cloudMsg && <p style={{ fontSize: '.82rem', marginTop: 8, color: cloudMsg.ok ? 'var(--accent2)' : 'var(--danger)' }}>{cloudMsg.text}</p>}
+          </div>
+        )}
         {/* Upload a zip / images */}
         <div className="card pad">
           <div className="card-title"><FileArchive /> Upload images or a .zip</div>
@@ -248,12 +299,12 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
                 {projects.map(p => (
                   <tr key={p.slug}>
                     <td>{p.name} {p.slug === active && <span className="badge info" style={{ marginLeft: 4 }}>viewing</span>}</td>
-                    <td>{isGithub(p.slug) ? <span className="chip"><Github size={11} /> GitHub</span> : isLocal(p.slug) ? <span className="chip"><HardDrive size={11} /> Local</span> : <span className="chip">Epicollect5</span>}</td>
+                    <td>{isCloud(p.slug) ? <span className="chip" style={{ color: 'var(--accent2)' }}><Cloud size={11} /> Community</span> : isGithub(p.slug) ? <span className="chip"><Github size={11} /> GitHub</span> : isLocal(p.slug) ? <span className="chip"><HardDrive size={11} /> Local</span> : <span className="chip">Epicollect5</span>}</td>
                     <td>
                       <div className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
                         <button className="btn btn-sm btn-ghost" title="View" onClick={() => onChangeActive(p.slug)}><Eye size={14} /></button>
-                        {!isLocal(p.slug) && <a className="btn btn-sm btn-ghost" title="Open source" href={projectUrl(p.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14} /></a>}
-                        {!isBuiltin(p.slug) && <button className="btn btn-sm btn-ghost" title="Remove" onClick={() => remove(p.slug)} style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>}
+                        {!isLocal(p.slug) && !isCloud(p.slug) && <a className="btn btn-sm btn-ghost" title="Open source" href={projectUrl(p.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14} /></a>}
+                        {!isBuiltin(p.slug) && !isCloud(p.slug) && <button className="btn btn-sm btn-ghost" title="Remove" onClick={() => remove(p.slug)} style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>}
                       </div>
                     </td>
                   </tr>

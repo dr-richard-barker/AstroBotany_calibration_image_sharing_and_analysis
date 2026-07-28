@@ -11,6 +11,8 @@
 import type { Ec5Entry, EntryField, MarkerAnalysis } from '../types';
 import { fetchGithubFolder, parseGhId, ghUrl, parseFilenameMeta, metaFor, type GhTarget, type GhFile } from './github';
 import { loadLocalEntries, deleteLocalSource } from '../lib/localsource';
+import { authConfigured } from '../lib/supabase';
+import { CLOUD_SLUG, isCloud, fetchCloudPage } from '../lib/uploads';
 
 export const EC5_BASE = 'https://five.epicollect.net';
 export const DEMO_SLUG = 'ec5-api-test';
@@ -18,7 +20,7 @@ export const ALL = '__all__';
 
 // A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
 // image folder (type 'github', slug prefixed "gh:", details in `gh`).
-export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local'; gh?: GhTarget; iss?: boolean; metaUrl?: string; reference?: { text: string; url: string }; rsmlIndex?: string; }
+export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local' | 'cloud'; gh?: GhTarget; iss?: boolean; metaUrl?: string; reference?: { text: string; url: string }; rsmlIndex?: string; }
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
 export const isLocal = (slug: string) => slug.startsWith('local:');
@@ -90,10 +92,14 @@ function writeCustom(list: ProjectRef[]) {
   try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch { /* quota */ }
 }
 
+// The shared cloud collection (only when Supabase auth is configured).
+const CLOUD_REF: ProjectRef = { slug: CLOUD_SLUG, name: 'Community uploads', type: 'cloud' };
+
 // Built-ins + custom, de-duplicated by slug. A ?project= slug is added on load.
 export function getProjects(): ProjectRef[] {
   const seen = new Set<string>(), out: ProjectRef[] = [];
-  for (const p of [...BUILTIN, ...readCustom()]) {
+  const base = authConfigured ? [CLOUD_REF, ...BUILTIN] : BUILTIN;
+  for (const p of [...base, ...readCustom()]) {
     if (seen.has(p.slug)) continue; seen.add(p.slug); out.push(p);
   }
   return out;
@@ -225,6 +231,12 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
   const key = `${slug}|${page}|${perPage}`;
   const hit = pageCache.get(key);
   if (hit && Date.now() - hit.time < TTL_MS) return clone(hit.value);
+
+  // Shared cloud uploads (Supabase-backed). Not cached — reflects new uploads.
+  if (isCloud(slug)) {
+    const r = await fetchCloudPage(page, perPage);
+    return { entries: r.entries, total: r.total, hasNext: r.hasNext };
+  }
 
   // GitHub folder source: one API call lists the folder (cached in github.ts),
   // then we page over the images client-side.
