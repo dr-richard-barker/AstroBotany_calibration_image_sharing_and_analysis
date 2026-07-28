@@ -68,8 +68,8 @@ create policy hidden_write on public.hidden_content for all
   using (public.is_admin()) with check (public.is_admin());
 
 -- ── uploads: shared user contributions (metadata; files go to Storage) ───────
--- (Table + policies are ready for the shared-upload feature; the current app
---  still uploads locally per-browser until that UI is wired.)
+-- Powers the "Community uploads" collection: signed-in users insert their own
+-- rows; everyone signed in can read; owner or admin can delete.
 create table if not exists public.uploads (
   id         uuid primary key default gen_random_uuid(),
   owner      uuid not null references auth.users(id) default auth.uid(),
@@ -98,3 +98,12 @@ create policy uploads_put on storage.objects for insert
 drop policy if exists uploads_del on storage.objects;
 create policy uploads_del on storage.objects for delete
   using (bucket_id = 'uploads' and (owner = auth.uid() or public.is_admin()));
+
+-- ── grants: PostgREST's roles need table privileges too (RLS still restricts
+-- which ROWS each user sees; these grant the base access the policies filter).
+-- Login-for-everything, so only `authenticated` gets access — never `anon`.
+grant usage on schema public to authenticated;
+grant select, update on public.profiles to authenticated;
+grant select, insert, delete on public.hidden_content to authenticated;
+grant select, insert, delete on public.uploads to authenticated;
+grant execute on function public.is_admin() to authenticated;
