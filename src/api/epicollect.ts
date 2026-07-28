@@ -278,9 +278,12 @@ const SPECIES_TIERS = [
 // identity — so "plant health = Good" or "plants per tray = 12" are never taken
 // as the species.
 const NOT_SPECIES = /health|status|conditio|appearanc|quality|rating|vigou?r|score|grade|\bstage\b|count|number|amount|\bper\b|height|weight|date|time|note|comment/i;
+// Rating/scale answers that are never a species name (a "how does the plant
+// look?" style question can otherwise slip a "Good"/"Poor" into the species).
+const RATING_VALUE = /^(good|poor|fair|great|excellent|ok|okay|healthy|unhealthy|sick|dead|alive|yes|no|n\/?a|none|na|high|med(ium)?|low|normal|abnormal|true|false|present|absent|pass|fail)$/i;
 function pickSpecies(fields: { key: string; name: string; value: string }[]): string | null {
   for (const re of SPECIES_TIERS) {
-    const f = fields.find(f => f.value && !isNumericish(f.value)
+    const f = fields.find(f => f.value && !isNumericish(f.value) && !RATING_VALUE.test(f.value.trim())
       && (re.test(f.key) || re.test(f.name))
       && !NOT_SPECIES.test(f.key) && !NOT_SPECIES.test(f.name));
     if (f) return f.value;
