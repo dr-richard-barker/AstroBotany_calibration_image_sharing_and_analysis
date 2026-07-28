@@ -34,6 +34,14 @@ export function isIssSource(slug: string): boolean {
 
 // CoSE projects known to hold (or will hold) calibration images / experiment data.
 const BUILTIN: ProjectRef[] = [
+  // APEX05 spaceflight root-architecture study (mirrored from Google Drive into
+  // GitHub). Images carry a metadata.csv sidecar (condition/day/genotype);
+  // RSML traces + analysis code live alongside in the same repo for AstroRoot.
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/APEX05/images',
+    name: 'APEX05 — root architecture (Flight vs GC)', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'APEX05/images' },
+  },
   { slug: 'clinostat-collaboration', name: 'Clinostat Collaboration' },
   { slug: 'airi-microgreen-growth-biomass-analysis', name: 'AIRI Microgreen Growth & Biomass' },
   { slug: 'growing-beyond-earth-2021-2022', name: 'Growing Beyond Earth 2021–2022' },
