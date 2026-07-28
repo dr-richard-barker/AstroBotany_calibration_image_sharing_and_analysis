@@ -142,7 +142,7 @@ export default function App() {
             <input placeholder="Search title, species, metadata…" value={query} onChange={e => setQuery(e.target.value)} onFocus={() => setTab('database')} />
           </div>
           <span className="grow" />
-          <select className="select" style={{ width: 'auto', maxWidth: 220 }} value={active} onChange={e => changeActive(e.target.value)} title="Choose Epicollect5 project">
+          <select className="select" style={{ width: 'auto', minWidth: 200, maxWidth: 'min(420px, 42vw)' }} value={active} onChange={e => changeActive(e.target.value)} title="Choose Epicollect5 project">
             {projects.map(p => <option key={p.slug} value={p.slug}>{p.name}</option>)}
             {projects.length > 1 && <option value={ALL}>All projects</option>}
           </select>
