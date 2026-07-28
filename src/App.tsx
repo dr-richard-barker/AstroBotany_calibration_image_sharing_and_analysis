@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList } from 'lucide-react';
+import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText } from 'lucide-react';
 import { TOOLS, toolById } from './tools';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
@@ -95,6 +95,7 @@ export default function App() {
 
   const activeLabel = active === ALL ? 'All projects' : projectName(active);
   const activeTool = toolById(tab);
+  const activeRef = projects.find(p => p.slug === active)?.reference;
 
   return (
     <div className={`app ${menuOpen ? 'menu-open' : ''}`}>
@@ -169,6 +170,12 @@ export default function App() {
           {errors.length > 0 && tab === 'database' && (
             <div className="card pad" style={{ marginBottom: 14, borderColor: 'var(--danger)', color: 'var(--danger)', fontSize: '.82rem' }}>
               {errors.map((e, i) => <div key={i}>{e}</div>)}
+            </div>
+          )}
+          {activeRef && tab === 'database' && (
+            <div className="card pad" style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: '.82rem' }}>
+              <BookText size={16} color="var(--accent2)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div><strong>Reference:</strong> {activeRef.text} <a href={activeRef.url} target="_blank" rel="noreferrer">PubMed ↗</a></div>
             </div>
           )}
 

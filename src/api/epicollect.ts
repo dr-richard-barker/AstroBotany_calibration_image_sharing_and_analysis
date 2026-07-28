@@ -18,7 +18,7 @@ export const ALL = '__all__';
 
 // A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
 // image folder (type 'github', slug prefixed "gh:", details in `gh`).
-export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local'; gh?: GhTarget; iss?: boolean; metaUrl?: string; }
+export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local'; gh?: GhTarget; iss?: boolean; metaUrl?: string; reference?: { text: string; url: string }; }
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
 export const isLocal = (slug: string) => slug.startsWith('local:');
@@ -39,6 +39,19 @@ const BUILTIN: ProjectRef[] = [
   { slug: 'growing-beyond-earth-2021-2022', name: 'Growing Beyond Earth 2021–2022' },
   { slug: 'nasa-roots', name: 'NASA Roots' },
   { slug: 'the-spacechilechallenge-cose', name: 'The SpaceChileChallenge' },
+  // ABRS Advanced Biological Research System root time-lapse (NASA spaceflight).
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/ABRS_NASA_Roots_TimeLapse/ABRS_Flight',
+    name: 'ABRS Roots time-lapse — Flight', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'ABRS_NASA_Roots_TimeLapse/ABRS_Flight' },
+    reference: { text: 'Paul, Zupanska, Schultz & Ferl (2013). Organ-specific remodeling of the Arabidopsis transcriptome in response to spaceflight. BMC Plant Biology 13:112. doi:10.1186/1471-2229-13-112', url: 'https://pubmed.ncbi.nlm.nih.gov/23919896/' },
+  },
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/ABRS_NASA_Roots_TimeLapse/ABRS_Ground_control',
+    name: 'ABRS Roots time-lapse — Ground control', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'ABRS_NASA_Roots_TimeLapse/ABRS_Ground_control' },
+    reference: { text: 'Paul, Zupanska, Schultz & Ferl (2013). Organ-specific remodeling of the Arabidopsis transcriptome in response to spaceflight. BMC Plant Biology 13:112. doi:10.1186/1471-2229-13-112', url: 'https://pubmed.ncbi.nlm.nih.gov/23919896/' },
+  },
 ];
 
 const CUSTOM_KEY = 'ec5-projects'; // user-added ProjectRef[]

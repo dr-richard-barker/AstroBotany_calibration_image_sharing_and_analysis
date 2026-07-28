@@ -241,10 +241,19 @@ function splitLine(line: string, delim: string): string[] {
 export function parseFilenameMeta(name: string): { fields: { name: string; value: string }[]; capturedAt: string | null } {
   const fields: { name: string; value: string }[] = [];
   let capturedAt: string | null = null;
-  const ts = name.match(/(?:^|[_-])(\d{10})(?:\D|$)/);
-  if (ts) {
-    const d = new Date(Number(ts[1]) * 1000);
+  // 1) explicit YYYY_MM_DD[_HH_MM_SS] (e.g. ABRS "2010_02_14_09_36_44-0072.jpg")
+  const dtm = name.match(/(\d{4})[_.-](\d{2})[_.-](\d{2})(?:[_.T-](\d{2})[_.:-](\d{2})[_.:-](\d{2}))?/);
+  if (dtm && +dtm[1] > 1990 && +dtm[1] < 2100) {
+    const d = new Date(Date.UTC(+dtm[1], +dtm[2] - 1, +dtm[3], +(dtm[4] || 0), +(dtm[5] || 0), +(dtm[6] || 0)));
     if (!isNaN(d.getTime())) { capturedAt = d.toISOString(); fields.push({ name: 'Captured', value: d.toLocaleString() }); }
+  }
+  // 2) else a unix timestamp (ExoLab rig style)
+  if (!capturedAt) {
+    const ts = name.match(/(?:^|[_-])(\d{10})(?:\D|$)/);
+    if (ts) {
+      const d = new Date(Number(ts[1]) * 1000);
+      if (!isNaN(d.getTime())) { capturedAt = d.toISOString(); fields.push({ name: 'Captured', value: d.toLocaleString() }); }
+    }
   }
   const pos = name.match(/position[_-]?([\d.]+)/i);
   if (pos) fields.push({ name: 'Lens position', value: pos[1] });
