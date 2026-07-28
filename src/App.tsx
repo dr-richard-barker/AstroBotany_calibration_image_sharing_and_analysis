@@ -176,7 +176,7 @@ export default function App() {
           {activeRef && tab === 'database' && (
             <div className="card pad" style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: '.82rem' }}>
               <BookText size={16} color="var(--accent2)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <div><strong>Reference:</strong> {activeRef.text} <a href={activeRef.url} target="_blank" rel="noreferrer">PubMed ↗</a></div>
+              <div><strong>Reference:</strong> {activeRef.text} <a href={activeRef.url} target="_blank" rel="noreferrer">{/pubmed|ncbi\.nlm/i.test(activeRef.url) ? 'PubMed' : /github\.com/i.test(activeRef.url) ? 'GitHub' : 'Source'} ↗</a></div>
             </div>
           )}
           {activeRsml && tab === 'database' && (

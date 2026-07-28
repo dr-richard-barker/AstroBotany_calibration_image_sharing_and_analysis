@@ -43,6 +43,15 @@ const BUILTIN: ProjectRef[] = [
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'APEX05/images' },
     rsmlIndex: 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/APEX05/rsml_index.json',
   },
+  // MadWest Rocketry × AstroBotany — TREES launch: Populus tremula (aspen) ±
+  // ectomycorrhiza, flight vs ground (2×2). Growth-arm timelapses (H.264 MP4)
+  // committed in the repo; a metadata.csv sidecar labels each by treatment.
+  {
+    slug: 'gh:dr-richard-barker/madwest-astrobotany/main/assets/timelapse',
+    name: 'MadWest TREES — Populus ± ECM (Flight vs Ground)', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'madwest-astrobotany', ref: 'main', path: 'assets/timelapse' },
+    reference: { text: 'MadWest Rocketry × AstroBotany — high-school sounding-rocket space biology: Populus tremula ± ectomycorrhiza, flight vs ground (2×2), packaged for NASA OSDR.', url: 'https://github.com/dr-richard-barker/madwest-astrobotany' },
+  },
   { slug: 'clinostat-collaboration', name: 'Clinostat Collaboration' },
   { slug: 'airi-microgreen-growth-biomass-analysis', name: 'AIRI Microgreen Growth & Biomass' },
   { slug: 'growing-beyond-earth-2021-2022', name: 'Growing Beyond Earth 2021–2022' },
