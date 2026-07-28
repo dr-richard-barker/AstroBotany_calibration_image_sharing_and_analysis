@@ -17,7 +17,11 @@ export function loadWorld(baseUrl: string): Promise<GeoFeature[]> {
   if (inflight) return inflight;
   inflight = fetch(`${baseUrl}geo/countries.geo.json`)
     .then(r => { if (!r.ok) throw new Error(`world map ${r.status}`); return r.json(); })
-    .then(j => { cache = j.features as GeoFeature[]; return cache; })
+    .then(j => {
+      // Flatten the name out of GeoJSON `properties` so callers can use f.name.
+      cache = (j.features as any[]).map(f => ({ id: f.id, name: f.properties?.name || f.id, geometry: f.geometry })) as GeoFeature[];
+      return cache;
+    })
     .finally(() => { inflight = null; });
   return inflight;
 }

@@ -260,6 +260,28 @@ const RESERVED = new Set(['ec5_uuid', 'created_at', 'uploaded_at', 'title']);
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/i.test(s);
 
 // Reshape a raw Epicollect5 entry: auto-detect the photo field, collect the rest
+// Choose the species/cultivar for an entry from its fields. Prefer an explicit
+// cultivar/variety/genotype/species question (matched on the field key OR its
+// human label — GBE stores it as "Select the cultivar being reported"); fall
+// back to a plant/organism/crop field, but never a purely numeric value (so a
+// "plants per tray" count is not mistaken for a species).
+const isNumericish = (s: string) => /^[\s\d.,%±+/-]+$/.test(s);
+// Tiered so an explicit species wins over a cultivar wins over a genotype/line,
+// regardless of field order, and a numeric value is never taken as a species.
+const SPECIES_TIERS = [
+  /scientific|\bspecies\b|taxon/i,             // true species / scientific name
+  /cultivar|variet/i,                          // cultivar (GBE: "Select the cultivar being reported")
+  /genotype|ecotype|accession|line|strain/i,   // genetic line
+  /speci|(^|[_\s])plant|organism|crop|specimen/i, // weak fallback
+];
+function pickSpecies(fields: { key: string; name: string; value: string }[]): string | null {
+  for (const re of SPECIES_TIERS) {
+    const f = fields.find(f => f.value && !isNumericish(f.value) && (re.test(f.key) || re.test(f.name)));
+    if (f) return f.value;
+  }
+  return null;
+}
+
 // as display metadata, and pull out species / GPS / a human title.
 export function mapEntry(raw: any, slug: string): Ec5Entry {
   let photoUrl: string | null = null;
@@ -282,9 +304,9 @@ export function mapEntry(raw: any, slug: string): Ec5Entry {
     }
     const str = formatValue(value);
     if (!str) continue;
-    if (/speci|taxon|plant|organism/i.test(key) && !species) species = str;
     fields.push({ key, name: prettify(key), value: str });
   }
+  species = pickSpecies(fields);
 
   let title = raw.title as string;
   let titleKey: string | null = null;
@@ -324,12 +346,12 @@ function ghEntry(f: GhFile, slug: string, meta?: Record<string, string>): Ec5Ent
       if (/^(title|label|caption)$/i.test(k)) { title = v; continue; }
       if (/^(lat|latitude)$/i.test(k)) { const n = parseFloat(v); if (!Number.isNaN(n)) lat = n; continue; }
       if (/^(lon|lng|long|longitude)$/i.test(k)) { const n = parseFloat(v); if (!Number.isNaN(n)) lng = n; continue; }
-      if (/speci|taxon|plant|organism/i.test(k) && !species) species = v;
       if (/date|time|captured/i.test(k)) { const d = new Date(v); if (!isNaN(d.getTime())) capturedAt = d.toISOString(); }
-      fields.push({ name: prettify(k), value: v });
+      fields.push({ key: k, name: prettify(k), value: v } as any);
     }
     if (lat != null && lng != null) gps = { lat, lng };
   }
+  species = pickSpecies(fields.map(f => ({ key: (f as any).key || f.name, name: f.name, value: f.value })));
 
   fields.push({ name: 'File size', value: f.size > 1_000_000 ? `${(f.size / 1048576).toFixed(1)} MB` : `${Math.round(f.size / 1024)} KB` });
   return {
