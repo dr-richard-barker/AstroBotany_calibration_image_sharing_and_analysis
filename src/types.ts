@@ -40,6 +40,7 @@ export interface Ec5Entry {
   uploadedAt: string;
   photoUrl: string | null;   // media endpoint, entry_original
   thumbUrl: string | null;   // media endpoint, entry_thumb
+  videoUrl?: string | null;  // for video entries (e.g. a GitHub .avi/.mp4)
   fields: EntryField[];      // remaining form fields (species, notes, …)
   species: string | null;    // best-effort, from a field named like "species"
   gps: { lat: number; lng: number } | null;

@@ -313,11 +313,15 @@ function ghEntry(f: GhFile, slug: string, meta?: Record<string, string>): Ec5Ent
     if (lat != null && lng != null) gps = { lat, lng };
   }
 
-  fields.push({ name: 'File size', value: `${Math.round(f.size / 1024)} KB` });
+  fields.push({ name: 'File size', value: f.size > 1_000_000 ? `${(f.size / 1048576).toFixed(1)} MB` : `${Math.round(f.size / 1024)} KB` });
   return {
     uuid: f.sha || f.path, project: slug, title,
     createdAt: capturedAt || '', uploadedAt: capturedAt || '',
-    photoUrl: f.downloadUrl, thumbUrl: f.downloadUrl,
+    // Video entries carry a videoUrl and no photoUrl (there's no still to
+    // marker-analyse); image entries carry photo + thumb.
+    photoUrl: f.video ? null : f.downloadUrl,
+    thumbUrl: f.video ? null : f.downloadUrl,
+    videoUrl: f.video ? f.downloadUrl : null,
     fields, species, gps, marker: null,
   };
 }

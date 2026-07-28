@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Eraser, MapPin, Camera, ExternalLink, LineChart } from 'lucide-react';
+import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Eraser, MapPin, Camera, ExternalLink, LineChart, Film, Download } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis, Pt } from '../types';
 import { urlToImageData } from '../lib/capture';
 import { analyzeMarker, analyzeFromQuad } from '../lib/detect';
@@ -39,7 +39,10 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
   const [quad, setQuad] = useState<[Pt, Pt, Pt, Pt]>(DEFAULT_QUAD);
   const [dirty, setDirty] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [videoErr, setVideoErr] = useState(false);
   const dims = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
+  const isAvi = !!entry.videoUrl && /\.avi(\?|$)/i.test(entry.videoUrl);
+  useEffect(() => { setVideoErr(false); }, [entry.uuid]);
 
   useEffect(() => {
     setMarker(entry.marker); setAnnotate(false); setDirty(false); setImgData(null); setErr(null);
@@ -86,6 +89,26 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
 
   return (
     <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr)', gap: 16 }}>
+      {entry.videoUrl && (
+        <div className="card pad">
+          <div className="card-title"><Film /> Time-lapse video</div>
+          <video controls preload="metadata" playsInline crossOrigin="anonymous"
+            onError={() => setVideoErr(true)}
+            style={{ display: 'block', width: '100%', borderRadius: 8, background: '#000', maxHeight: 460 }}>
+            <source src={entry.videoUrl} type={isAvi ? 'video/x-msvideo' : undefined} />
+          </video>
+          {(videoErr || isAvi) && (
+            <p className="muted" style={{ fontSize: '.8rem', marginTop: 8 }}>
+              {isAvi ? 'This is an AVI file. Most browsers can’t decode AVI inline' : 'Your browser couldn’t play this video inline'} — use <strong>Download / open</strong> below to view it in a media player (e.g. VLC or QuickTime).
+            </p>
+          )}
+          <div className="row wrap" style={{ marginTop: 10, gap: 8 }}>
+            <a className="btn btn-primary btn-sm" href={entry.videoUrl} download target="_blank" rel="noreferrer"><Download size={14} /> Download / open</a>
+            <a className="btn btn-sm btn-ghost" href={entry.videoUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open in new tab</a>
+          </div>
+        </div>
+      )}
+      {!entry.videoUrl && (<>
       <div className="card pad">
         <div className="card-title sb" style={{ justifyContent: 'space-between' }}>
           <span className="row" style={{ gap: 8 }}><Crosshair /> {annotate ? 'Place the 4 marker corners' : 'Marker analysis'}</span>
@@ -185,6 +208,7 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
           <div className="muted" style={{ fontSize: '.72rem' }}>Written back by the analysis tools · shared in your browser · included in exports.</div>
         </div>
       )}
+      </>)}
 
       <div className="card pad">
         <div className="card-title"><Camera /> Entry metadata</div>

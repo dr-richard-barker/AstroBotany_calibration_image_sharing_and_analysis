@@ -6,9 +6,14 @@
 // detector can read their pixels off a canvas.
 
 export interface GhTarget { owner: string; repo: string; path: string; ref: string; }
-export interface GhFile { name: string; path: string; downloadUrl: string; size: number; sha: string; }
+export interface GhFile { name: string; path: string; downloadUrl: string; size: number; sha: string; video?: boolean; }
 
 const IMG_RE = /\.(jpe?g|png|webp|gif|tiff?|bmp)$/i;
+// Video time-lapses (e.g. the ABRS root movies). AVI is included because the
+// files exist and are worth surfacing, even though most browsers can't decode
+// it inline — the UI offers a download/open fallback for unsupported codecs.
+const VIDEO_RE = /\.(avi|mp4|webm|ogv|mov|m4v|mkv)$/i;
+export const isVideoName = (name: string) => VIDEO_RE.test(name);
 
 // Accept a full GitHub URL (…/tree/<ref>/<path>, or repo root) or an
 // "owner/repo[/path]" shorthand (defaults to the main branch).
@@ -61,8 +66,8 @@ export async function fetchGithubFolder(t: GhTarget, metaUrl?: string): Promise<
   if (!Array.isArray(j)) throw new Error('That path is a file, not a folder');
 
   const images: GhFile[] = j
-    .filter((f: any) => f.type === 'file' && IMG_RE.test(f.name) && f.download_url)
-    .map((f: any) => ({ name: f.name, path: f.path, downloadUrl: f.download_url, size: f.size, sha: f.sha }));
+    .filter((f: any) => f.type === 'file' && (IMG_RE.test(f.name) || VIDEO_RE.test(f.name)) && f.download_url)
+    .map((f: any) => ({ name: f.name, path: f.path, downloadUrl: f.download_url, size: f.size, sha: f.sha, video: VIDEO_RE.test(f.name) }));
 
   let meta: MetaMap = new Map();
   let metaFile: string | null = null;
@@ -259,5 +264,7 @@ export function parseFilenameMeta(name: string): { fields: { name: string; value
   if (pos) fields.push({ name: 'Lens position', value: pos[1] });
   const cam = name.match(/cam[_-]?(\d+)/i);
   if (cam) fields.push({ name: 'Camera', value: cam[1] });
+  const fps = name.match(/(\d+)\s*fps/i);
+  if (fps) fields.push({ name: 'Frame rate', value: `${fps[1]} fps` });
   return { fields, capturedAt };
 }
