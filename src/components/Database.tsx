@@ -81,8 +81,11 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
     const q = query.trim().toLowerCase();
     return entries.filter(e => {
       if (disabled.has(e.project)) return false;
+      // Strict genotype filter: once any genotype chip is toggled off, show only
+      // entries whose genotype is still enabled — entries with no genotype label
+      // are hidden too (not just the deselected genotypes).
       const g = genoOf(e);
-      if (g && disabledGeno.has(g)) return false;
+      if (disabledGeno.size > 0 && (!g || disabledGeno.has(g))) return false;
       if (filter === 'withPhoto' && !e.photoUrl) return false;
       if (filter === 'analyzed' && !e.marker?.markerFound) return false;
       if (!q) return true;
