@@ -274,9 +274,15 @@ const SPECIES_TIERS = [
   /genotype|ecotype|accession|line|strain/i,   // genetic line
   /speci|(^|[_\s])plant|organism|crop|specimen/i, // weak fallback
 ];
+// Fields that mention a plant but describe its state/measurement, not its
+// identity — so "plant health = Good" or "plants per tray = 12" are never taken
+// as the species.
+const NOT_SPECIES = /health|status|conditio|appearanc|quality|rating|vigou?r|score|grade|\bstage\b|count|number|amount|\bper\b|height|weight|date|time|note|comment/i;
 function pickSpecies(fields: { key: string; name: string; value: string }[]): string | null {
   for (const re of SPECIES_TIERS) {
-    const f = fields.find(f => f.value && !isNumericish(f.value) && (re.test(f.key) || re.test(f.name)));
+    const f = fields.find(f => f.value && !isNumericish(f.value)
+      && (re.test(f.key) || re.test(f.name))
+      && !NOT_SPECIES.test(f.key) && !NOT_SPECIES.test(f.name));
     if (f) return f.value;
   }
   return null;
