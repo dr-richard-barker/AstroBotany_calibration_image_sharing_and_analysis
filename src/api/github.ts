@@ -100,6 +100,7 @@ export function metaFor(meta: MetaMap, filename: string): Record<string, string>
 
 export interface ScanFolder {
   path: string; count: number; bytes: number; sampleNames: string[];
+  derived: boolean;                            // likely plots/histograms/thumbnails (tiny avg size or a viz folder)
   suggestedMeta?: { name: string; path: string; rawUrl: string };
 }
 export interface RepoScan {
@@ -142,7 +143,7 @@ export async function scanRepo(owner: string, repo: string): Promise<RepoScan> {
     const dir = b.path.includes('/') ? b.path.slice(0, b.path.lastIndexOf('/')) : '(root)';
     if (IMG_RE.test(name)) {
       totalImages++;
-      const g = folders.get(dir) || { path: dir, count: 0, bytes: 0, sampleNames: [] };
+      const g = folders.get(dir) || { path: dir, count: 0, bytes: 0, sampleNames: [], derived: false };
       g.count++; g.bytes += b.size || 0;
       if (g.sampleNames.length < 4) g.sampleNames.push(name);
       folders.set(dir, g);
@@ -153,6 +154,8 @@ export async function scanRepo(owner: string, repo: string): Promise<RepoScan> {
 
   const list = [...folders.values()].filter(f => f.count >= 3).sort((a, b) => b.count - a.count);
   for (const f of list) {
+    // Small average size or a viz-named folder ⇒ derived plots, not specimens.
+    f.derived = (f.bytes / f.count) < 40_000 || /\/(histograms?|thumbnails?|thumbs|plots?|charts?)(\/|$)/i.test(f.path);
     // Suggest a data file sharing the folder's top-two path segments (prefer the
     // main output over a "background" file).
     const near = dataFiles.filter(d => top2(d.path) === top2(f.path));

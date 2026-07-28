@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download, FolderSearch, Table } from 'lucide-react';
+import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download, FolderSearch, Table, Sparkles } from 'lucide-react';
 import { addProject, removeProject, addGithubSource, addLocalSource, isBuiltin, isGithub, isLocal, projectUrl, type ProjectRef } from '../api/epicollect';
 import { parseGithub, defaultName, fetchGithubImages, parseGithubRepo, scanRepo, type RepoScan } from '../api/github';
 import { processUpload } from '../lib/localsource';
@@ -52,33 +52,33 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
     try {
       const r = await scanRepo(t.owner, t.repo);
       setScan(r);
-      setSel(new Set(r.folders.map(f => f.path)));
-      setAttach(new Set(r.folders.filter(f => f.suggestedMeta).map(f => f.path)));
+      setSel(new Set(r.folders.filter(f => !f.derived).map(f => f.path)));
+      setAttach(new Set(r.folders.filter(f => f.suggestedMeta && !f.derived).map(f => f.path)));
       if (!r.folders.length) setScanMsg({ ok: false, text: 'No image folders (≥3 images) found in this repo.' });
     } catch (e) {
       setScanMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally { setScanning(false); }
   };
 
-  const addScanned = () => {
+  const addFolders = (folders: RepoScan['folders'], useMeta: (f: RepoScan['folders'][number]) => boolean, note: string) => {
     if (!scan) return;
-    let first = '';
-    for (const f of scan.folders) {
-      if (!sel.has(f.path)) continue;
+    let first = '', n = 0;
+    for (const f of folders) {
       const last = f.path.split('/').filter(Boolean).pop() || scan.repo;
       const ref = addGithubSource(
         { owner: scan.owner, repo: scan.repo, ref: scan.branch, path: f.path },
-        `${scan.repo} · ${last}`,
-        undefined,
-        attach.has(f.path) ? f.suggestedMeta?.rawUrl : undefined,
+        `${scan.repo} · ${last}`, undefined, useMeta(f) ? f.suggestedMeta?.rawUrl : undefined,
       );
-      if (!first) first = ref.slug;
+      if (!first) first = ref.slug; n++;
     }
     onProjectsChange();
     if (first) onChangeActive(first);
-    setScanMsg({ ok: true, text: `Added ${[...sel].length} source(s) from ${scan.repo}.` });
+    setScanMsg({ ok: true, text: `Added ${n} source(s) from ${scan.repo}${note}.` });
     setScan(null);
   };
+  const addScanned = () => scan && addFolders(scan.folders.filter(f => sel.has(f.path)), f => attach.has(f.path), '');
+  // One-click: the best specimen folders (skip derived plots) + their data.
+  const addBest = () => scan && addFolders(scan.folders.filter(f => !f.derived), () => true, ' (best pairing — skipped derived/plot folders)');
   const toggle = (set: Set<string>, key: string, setter: (s: Set<string>) => void) => {
     const n = new Set(set); n.has(key) ? n.delete(key) : n.add(key); setter(n);
   };
@@ -189,9 +189,9 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
                   <thead><tr><th style={{ width: 30 }}></th><th>Image folder</th><th style={{ textAlign: 'right' }}>Images</th><th style={{ textAlign: 'right' }}>Size</th><th>Metadata (auto-detected)</th></tr></thead>
                   <tbody>
                     {scan.folders.map(f => (
-                      <tr key={f.path}>
+                      <tr key={f.path} style={{ opacity: f.derived ? 0.5 : 1 }}>
                         <td><input type="checkbox" checked={sel.has(f.path)} onChange={() => toggle(sel, f.path, setSel)} /></td>
-                        <td><span className="mono" style={{ fontSize: '.78rem' }}>{f.path}</span></td>
+                        <td><span className="mono" style={{ fontSize: '.78rem' }}>{f.path}</span> {f.derived && <span className="chip tag" style={{ fontSize: '.62rem' }}>derived</span>}</td>
                         <td style={{ textAlign: 'right' }} className="mono">{f.count}</td>
                         <td style={{ textAlign: 'right' }} className="mono">{(f.bytes / 1e6).toFixed(0)} MB</td>
                         <td>
@@ -207,8 +207,11 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
                   </tbody>
                 </table>
               </div>
-              <div className="row" style={{ gap: 8, marginTop: 10 }}>
-                <button className="btn btn-primary btn-sm" disabled={!sel.size} onClick={addScanned}><Plus size={14} /> Add {sel.size} selected source{sel.size === 1 ? '' : 's'}</button>
+              <div className="row wrap" style={{ gap: 8, marginTop: 10 }}>
+                <button className="btn btn-primary btn-sm" onClick={addBest} title="Add the specimen image folders (skipping derived plots/histograms) with their matching data files attached">
+                  <Sparkles size={14} /> Add all (best pairing)
+                </button>
+                <button className="btn btn-sm" disabled={!sel.size} onClick={addScanned}><Plus size={14} /> Add {sel.size} selected</button>
                 <span className="muted" style={{ fontSize: '.74rem' }}>Large folders load thumbnails lazily. Detection + calibration run per image as usual.</span>
               </div>
             </div>
