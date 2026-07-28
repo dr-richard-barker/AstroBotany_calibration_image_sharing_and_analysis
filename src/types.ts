@@ -45,6 +45,7 @@ export interface Ec5Entry {
   species: string | null;    // best-effort, from a field named like "species"
   gps: { lat: number; lng: number } | null;
   marker: MarkerAnalysis | null; // hydrated from local cache
+  cloud?: { owner: string; path: string }; // present on shared cloud uploads (for owner delete)
 }
 
 export interface CollectionStats {

@@ -17,6 +17,7 @@ import { Admin } from './components/Admin';
 import { AuthGate } from './components/AuthGate';
 import { isAdmin, signOut, type AuthState } from './lib/auth';
 import { loadHidden, hiddenSets, hideItem, type HiddenItem } from './lib/moderation';
+import { deleteCloudUpload } from './lib/uploads';
 
 type Tab = string;
 
@@ -121,6 +122,12 @@ function AppInner({ auth }: { auth: AuthState }) {
   const onHideImage = admin
     ? (e: Ec5Entry) => { hideItem('image', `${e.project}::${e.uuid}`, e.title, 'hidden by admin').then(reloadHidden); }
     : undefined;
+  const currentUserId = auth.session?.user?.id;
+  // Delete a shared cloud upload (owner or admin — RLS enforces it server-side).
+  const onDeleteUpload = (e: Ec5Entry) => {
+    if (!e.cloud) return;
+    deleteCloudUpload(e.uuid, e.cloud.path).then(() => setEntries(prev => prev.filter(x => x.uuid !== e.uuid)));
+  };
   const userLabel = auth.session?.user?.email || auth.profile?.display_name || '';
 
   return (
@@ -230,7 +237,8 @@ function AppInner({ auth }: { auth: AuthState }) {
 
           {tab === 'database' ? (
             <Database entries={visibleEntries} query={query} loading={loading} hasNext={hasNext} showProject={active === ALL}
-              onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} onOpenTool={openTool} onHideImage={onHideImage} />
+              onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} onOpenTool={openTool} onHideImage={onHideImage}
+              currentUserId={currentUserId} onDeleteUpload={onDeleteUpload} />
           ) : tab === 'dashboard' ? (
             <Dashboard />
           ) : tab === 'metadata' ? (

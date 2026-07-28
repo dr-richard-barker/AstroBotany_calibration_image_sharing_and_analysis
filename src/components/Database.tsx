@@ -17,6 +17,8 @@ interface Props {
   onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
   onOpenTool: (id: string, imageUrl: string, ref: string) => void;
   onHideImage?: (e: Ec5Entry) => void;   // admin-only: exclude an image
+  currentUserId?: string;                // signed-in user (for owner delete)
+  onDeleteUpload?: (e: Ec5Entry) => void; // delete a shared cloud upload
 }
 
 type Filter = 'all' | 'withPhoto' | 'analyzed';
@@ -27,7 +29,7 @@ type Filter = 'all' | 'withPhoto' | 'analyzed';
 const genoOf = (e: Ec5Entry): string =>
   e.fields.find(f => /^(genotype|ecotype|cultivar|accession|line|strain)$/i.test(f.name.trim()))?.value.trim() || '';
 
-export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged, onOpenTool, onHideImage }) => {
+export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged, onOpenTool, onHideImage, currentUserId, onDeleteUpload }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [disabled, setDisabled] = useState<Set<string>>(new Set()); // projects toggled off
   const [disabledGeno, setDisabledGeno] = useState<Set<string>>(new Set()); // genotypes toggled off
@@ -218,7 +220,10 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
             {selected && (
               <div style={{ position: 'sticky', top: 74 }}>
                 <MarkerInspector entry={selected} onMarkerChanged={onMarkerChanged} onOpenTool={onOpenTool}
-                  onHide={onHideImage ? () => { onHideImage(selected); setSelectedId(null); } : undefined} />
+                  onHide={onHideImage ? () => { onHideImage(selected); setSelectedId(null); } : undefined}
+                  onDelete={onDeleteUpload && selected.cloud && (selected.cloud.owner === currentUserId || !!onHideImage)
+                    ? () => { onDeleteUpload(selected); setSelectedId(null); } : undefined}
+                  deleteIsOwn={selected.cloud?.owner === currentUserId} />
               </div>
             )}
           </div>

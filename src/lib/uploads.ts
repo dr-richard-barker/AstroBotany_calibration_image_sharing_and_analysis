@@ -46,7 +46,7 @@ export async function uploadToCloud(files: File[], meta: UploadMeta, onProgress?
   return done;
 }
 
-interface UploadRow { id: string; title: string | null; species: string | null; path: string; metadata: Record<string, string> | null; created_at: string; }
+interface UploadRow { id: string; owner: string; title: string | null; species: string | null; path: string; metadata: Record<string, string> | null; created_at: string; }
 
 function rowToEntry(r: UploadRow): Ec5Entry {
   const url = supabase!.storage.from(UPLOAD_BUCKET).getPublicUrl(r.path).data.publicUrl;
@@ -57,6 +57,7 @@ function rowToEntry(r: UploadRow): Ec5Entry {
     createdAt: r.created_at || '', uploadedAt: r.created_at || '',
     photoUrl: url, thumbUrl: url, videoUrl: null,
     fields, species: r.species || null, gps: null, marker: null,
+    cloud: { owner: r.owner, path: r.path },
   };
 }
 
@@ -66,7 +67,7 @@ export async function fetchCloudPage(page: number, perPage: number): Promise<{ e
   const from = (page - 1) * perPage;
   const { data, count, error } = await supabase
     .from('uploads')
-    .select('id,title,species,path,metadata,created_at', { count: 'exact' })
+    .select('id,owner,title,species,path,metadata,created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, from + perPage - 1);
   if (error) throw new Error(error.message);
