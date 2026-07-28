@@ -291,13 +291,19 @@ const WorldMap: React.FC<{
 
   const ocean = mix(c['--accent'], c['--bg'], 0.9);          // faint blue sea
   const land0 = mix(c['--muted'], c['--bg'], 0.82);          // neutral land, no images
-  const heatMax = mix(c['--accent2'], '#0c3f39', 0.2);       // deep teal, most images
-  const max = Math.max(1, ...countryCounts.values());
-  const fillFor = (name: string) => {
-    const n = countryCounts.get(name) || 0;
-    if (!n) return land0;
-    return mix(land0, heatMax, 0.28 + 0.72 * Math.sqrt(n / max)); // sqrt so single hits still read
-  };
+  // Discrete count bins with a distinct green→red ramp — far easier to tell
+  // apart than a single-hue gradient when counts are skewed (e.g. 143 vs 1).
+  const BINS = [
+    { min: 1, max: 1, label: '1', color: '#4da64d' },
+    { min: 2, max: 5, label: '2–5', color: '#a6d96a' },
+    { min: 6, max: 20, label: '6–20', color: '#fee08b' },
+    { min: 21, max: 100, label: '21–100', color: '#fc8d3c' },
+    { min: 101, max: Infinity, label: '100+', color: '#d7191c' },
+  ];
+  const maxCount = Math.max(0, ...countryCounts.values());
+  const binFor = (n: number) => { let b = BINS[0]; for (const x of BINS) if (n >= x.min) b = x; return b; };
+  const fillFor = (name: string) => { const n = countryCounts.get(name) || 0; return n ? binFor(n).color : land0; };
+  const shownBins = BINS.filter(b => b.min <= maxCount);
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -311,7 +317,7 @@ const WorldMap: React.FC<{
         {world && world.map(f => {
           const n = countryCounts.get(f.name) || 0;
           return (
-            <path key={f.id} d={featurePath(f, x, y)} fill={fillFor(f.name)} stroke={c['--card']} strokeWidth={0.4} strokeLinejoin="round">
+            <path key={f.id} d={featurePath(f, x, y)} fill={fillFor(f.name)} stroke={n ? mix(fillFor(f.name), '#000000', 0.28) : c['--card']} strokeWidth={n ? 0.5 : 0.4} strokeLinejoin="round">
               <title>{`${f.name}: ${n} image${n === 1 ? '' : 's'}`}</title>
             </path>
           );
@@ -334,15 +340,15 @@ const WorldMap: React.FC<{
           </circle>
         ))}
       </svg>
-      <div className="row wrap muted" style={{ fontSize: '.72rem', marginTop: 6, gap: 14, alignItems: 'center' }}>
-        {/* heat legend */}
-        <span className="row" style={{ gap: 6, alignItems: 'center' }}>
-          <span>1</span>
-          <span style={{ width: 90, height: 9, borderRadius: 5, display: 'inline-block', background: `linear-gradient(90deg, ${mix(land0, heatMax, 0.28)}, ${heatMax})` }} />
-          <span>{max} images / country</span>
-        </span>
-        <span className="row" style={{ gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: land0, display: 'inline-block', border: `1px solid ${c['--line']}` }} /> no images</span>
-        {issPoints.length > 0 && <span className="row" style={{ gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 9, background: ISS_COLOR, display: 'inline-block' }} /> estimated ISS</span>}
+      <div className="row wrap muted" style={{ fontSize: '.72rem', marginTop: 8, gap: 12, alignItems: 'center' }}>
+        <span style={{ fontWeight: 500 }}>images / country:</span>
+        {shownBins.map(b => (
+          <span key={b.label} className="row" style={{ gap: 4, alignItems: 'center' }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: b.color, display: 'inline-block', border: `1px solid ${mix(b.color, '#000000', 0.28)}` }} /> {b.label}
+          </span>
+        ))}
+        <span className="row" style={{ gap: 4, alignItems: 'center' }}><span style={{ width: 12, height: 12, borderRadius: 3, background: land0, display: 'inline-block', border: `1px solid ${c['--line']}` }} /> none</span>
+        {issPoints.length > 0 && <span className="row" style={{ gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 9, background: ISS_COLOR, display: 'inline-block' }} /> ISS</span>}
       </div>
     </div>
   );
