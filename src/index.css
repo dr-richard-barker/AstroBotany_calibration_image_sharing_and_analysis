@@ -230,3 +230,30 @@ pre.code { background: var(--card-2); border: 1px solid var(--line); border-radi
 .sb { justify-content: space-between; }
 .empty { text-align: center; color: var(--muted); padding: 46px 20px; font-size: 0.9rem; }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 10px; font-size: 0.86rem; z-index: 100; box-shadow: var(--shadow); }
+
+/* --- auth gate + admin (added for login/moderation) --- */
+.btn-xs { padding: 3px 7px; font-size: 0.72rem; border-radius: 6px; gap: 4px; }
+.btn-xs svg { width: 12px; height: 12px; }
+
+.auth-screen {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; padding: 24px; background:
+    radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent),
+    var(--bg);
+}
+.auth-card {
+  width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 16px; padding: 30px 28px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.10);
+}
+.auth-logo { width: 52px; height: 52px; object-fit: contain; margin-bottom: 10px; }
+.auth-eyebrow { font: 700 0.68rem/1 var(--font); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent2); }
+.auth-card h1 { font-size: 1.35rem; margin: 6px 0 14px; }
+.auth-msg { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 0.9rem; color: var(--muted); margin-bottom: 18px; }
+.auth-google { width: 100%; justify-content: center; padding: 11px; font-size: 0.95rem; }
+.auth-fine { margin-top: 14px; font-size: 0.76rem; color: var(--muted); }
+.auth-foot { font-size: 0.74rem; color: var(--muted); }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.admin-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.admin-table td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.admin-table tr:last-child td { border-bottom: none; }

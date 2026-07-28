@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Eraser, MapPin, Camera, ExternalLink, LineChart, Film, Download } from 'lucide-react';
+import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Eraser, MapPin, Camera, ExternalLink, LineChart, Film, Download, EyeOff } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis, Pt } from '../types';
 import { urlToImageData } from '../lib/capture';
 import { analyzeMarker, analyzeFromQuad } from '../lib/detect';
@@ -12,6 +12,7 @@ interface Props {
   entry: Ec5Entry;
   onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
   onOpenTool: (id: string, imageUrl: string, ref: string) => void;
+  onHide?: () => void;   // admin-only: exclude this image
 }
 
 const rgb = (c: [number, number, number]) => `rgb(${c[0]},${c[1]},${c[2]})`;
@@ -19,7 +20,7 @@ const DEFAULT_QUAD: [Pt, Pt, Pt, Pt] = [
   { x: 0.35, y: 0.35 }, { x: 0.65, y: 0.35 }, { x: 0.65, y: 0.6 }, { x: 0.35, y: 0.6 },
 ];
 
-export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpenTool }) => {
+export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpenTool, onHide }) => {
   const slug = entry.project;
   const ref = `${entry.project}::${entry.uuid}`;
 
@@ -211,7 +212,15 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
       </>)}
 
       <div className="card pad">
-        <div className="card-title"><Camera /> Entry metadata</div>
+        <div className="card-title sb" style={{ justifyContent: 'space-between' }}>
+          <span className="row" style={{ gap: 8 }}><Camera /> Entry metadata</span>
+          {onHide && (
+            <button className="btn btn-xs btn-ghost" style={{ color: 'var(--danger)' }} title="Exclude this image from the database (admin)"
+              onClick={() => { if (confirm('Hide this image from all users? You can unhide it from the Admin tab.')) onHide(); }}>
+              <EyeOff size={12} /> Hide
+            </button>
+          )}
+        </div>
         <dl className="kv">
           {entry.species && <><dt>Species</dt><dd>{entry.species}</dd></>}
           {entry.fields.filter(f => f.name.toLowerCase() !== 'species').map((f, i) => (

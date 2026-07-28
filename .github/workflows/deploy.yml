@@ -28,7 +28,13 @@ jobs:
         with:
           enablement: true
       - run: npm ci
+      # Supabase config for login/moderation. Set these as repository *Variables*
+      # (Settings → Secrets and variables → Actions → Variables). Absent → the app
+      # runs in open, no-login mode. The anon key is publishable (safe in client).
       - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

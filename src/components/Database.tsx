@@ -16,6 +16,7 @@ interface Props {
   onLoadMore: () => void;
   onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
   onOpenTool: (id: string, imageUrl: string, ref: string) => void;
+  onHideImage?: (e: Ec5Entry) => void;   // admin-only: exclude an image
 }
 
 type Filter = 'all' | 'withPhoto' | 'analyzed';
@@ -26,7 +27,7 @@ type Filter = 'all' | 'withPhoto' | 'analyzed';
 const genoOf = (e: Ec5Entry): string =>
   e.fields.find(f => /^(genotype|ecotype|cultivar|accession|line|strain)$/i.test(f.name.trim()))?.value.trim() || '';
 
-export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged, onOpenTool }) => {
+export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged, onOpenTool, onHideImage }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [disabled, setDisabled] = useState<Set<string>>(new Set()); // projects toggled off
   const [disabledGeno, setDisabledGeno] = useState<Set<string>>(new Set()); // genotypes toggled off
@@ -216,7 +217,8 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
 
             {selected && (
               <div style={{ position: 'sticky', top: 74 }}>
-                <MarkerInspector entry={selected} onMarkerChanged={onMarkerChanged} onOpenTool={onOpenTool} />
+                <MarkerInspector entry={selected} onMarkerChanged={onMarkerChanged} onOpenTool={onOpenTool}
+                  onHide={onHideImage ? () => { onHideImage(selected); setSelectedId(null); } : undefined} />
               </div>
             )}
           </div>

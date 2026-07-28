@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText } from 'lucide-react';
+import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText, ShieldCheck, LogOut } from 'lucide-react';
 import { TOOLS, toolById } from './tools';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
@@ -13,6 +13,10 @@ import { ExportShare } from './components/ExportShare';
 import { About } from './components/About';
 import { ToolFrame } from './components/ToolFrame';
 import { MetadataReview } from './components/MetadataReview';
+import { Admin } from './components/Admin';
+import { AuthGate } from './components/AuthGate';
+import { isAdmin, signOut, type AuthState } from './lib/auth';
+import { loadHidden, hiddenSets, hideItem, type HiddenItem } from './lib/moderation';
 
 type Tab = string;
 
@@ -35,8 +39,19 @@ function initialTheme(): 'light' | 'dark' {
 }
 
 export default function App() {
+  return <AuthGate>{auth => <AppInner auth={auth} />}</AuthGate>;
+}
+
+function AppInner({ auth }: { auth: AuthState }) {
+  const admin = isAdmin(auth);
   const [tab, setTab] = useState<Tab>('database');
   const [projects, setProjects] = useState<ProjectRef[]>(getProjects);
+
+  // Moderation: hidden projects/images loaded once (and after admin changes).
+  const [hidden, setHidden] = useState<HiddenItem[]>([]);
+  const reloadHidden = useCallback(() => { loadHidden().then(setHidden).catch(() => {}); }, []);
+  useEffect(() => { reloadHidden(); }, [reloadHidden]);
+  const hiddenSet = useMemo(() => hiddenSets(hidden), [hidden]);
   const [active, setActive] = useState<string>(getActive);
   const [entries, setEntries] = useState<Ec5Entry[]>([]);
   const [page, setPage] = useState(1);
@@ -98,6 +113,16 @@ export default function App() {
   const activeRef = projects.find(p => p.slug === active)?.reference;
   const activeRsml = projects.find(p => p.slug === active)?.rsmlIndex;
 
+  // Hide moderated projects from the selector and moderated images from the grid.
+  const visibleProjects = useMemo(() => projects.filter(p => !hiddenSet.projects.has(p.slug)), [projects, hiddenSet]);
+  const visibleEntries = useMemo(() =>
+    entries.filter(e => !hiddenSet.projects.has(e.project) && !hiddenSet.images.has(`${e.project}::${e.uuid}`)),
+    [entries, hiddenSet]);
+  const onHideImage = admin
+    ? (e: Ec5Entry) => { hideItem('image', `${e.project}::${e.uuid}`, e.title, 'hidden by admin').then(reloadHidden); }
+    : undefined;
+  const userLabel = auth.session?.user?.email || auth.profile?.display_name || '';
+
   return (
     <div className={`app ${menuOpen ? 'menu-open' : ''}`}>
       <div className="scrim" onClick={() => setMenuOpen(false)} />
@@ -116,6 +141,11 @@ export default function App() {
               <Icon /><span>{label}<span className="sub">{sub}</span></span>
             </button>
           ))}
+          {admin && (
+            <button className={`navbtn ${tab === 'admin' ? 'active' : ''}`} onClick={() => { setTab('admin'); setMenuOpen(false); }}>
+              <ShieldCheck /><span>Admin<span className="sub">People &amp; moderation</span></span>
+            </button>
+          )}
         </nav>
         <div className="rail-tools">
           <div className="rail-tools-h">Analysis tools <Ruler size={11} /></div>
@@ -131,6 +161,14 @@ export default function App() {
         <div className="rail-foot">
           <div className="row" style={{ gap: 6 }}><Sprout size={14} color="var(--accent2)" /> {stats.total} loaded · {stats.analyzed} calibrated</div>
           <div style={{ marginTop: 6 }}>Viewing: <span className="mono">{activeLabel}</span></div>
+          {auth.status === 'signed-in' && (
+            <div className="row sb" style={{ justifyContent: 'space-between', marginTop: 8, gap: 6 }}>
+              <span className="mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={userLabel}>
+                {admin && <ShieldCheck size={11} style={{ verticalAlign: -1, color: 'var(--accent2)' }} />} {userLabel}
+              </span>
+              <button className="btn btn-xs btn-ghost" onClick={() => signOut()} title="Sign out"><LogOut size={12} /></button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -143,8 +181,8 @@ export default function App() {
           </div>
           <span className="grow" />
           <select className="select" style={{ width: 'auto', minWidth: 200, maxWidth: 'min(420px, 42vw)' }} value={active} onChange={e => changeActive(e.target.value)} title="Choose Epicollect5 project">
-            {projects.map(p => <option key={p.slug} value={p.slug}>{p.name}</option>)}
-            {projects.length > 1 && <option value={ALL}>All projects</option>}
+            {visibleProjects.map(p => <option key={p.slug} value={p.slug}>{p.name}</option>)}
+            {visibleProjects.length > 1 && <option value={ALL}>All projects</option>}
           </select>
           <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -191,16 +229,18 @@ export default function App() {
           )}
 
           {tab === 'database' ? (
-            <Database entries={entries} query={query} loading={loading} hasNext={hasNext} showProject={active === ALL}
-              onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} onOpenTool={openTool} />
+            <Database entries={visibleEntries} query={query} loading={loading} hasNext={hasNext} showProject={active === ALL}
+              onLoadMore={() => load(active, page + 1, false)} onMarkerChanged={onMarkerChanged} onOpenTool={openTool} onHideImage={onHideImage} />
           ) : tab === 'dashboard' ? (
             <Dashboard />
           ) : tab === 'metadata' ? (
             <MetadataReview />
+          ) : tab === 'admin' && admin ? (
+            <Admin projects={projects} hidden={hidden} myId={auth.session?.user?.id} onChanged={reloadHidden} />
           ) : tab === 'contribute' ? (
-            <Contribute projects={projects} active={active} onChangeActive={changeActive} onProjectsChange={refreshProjects} />
+            <Contribute projects={visibleProjects} active={active} onChangeActive={changeActive} onProjectsChange={refreshProjects} />
           ) : tab === 'export' ? (
-            <ExportShare entries={entries} label={activeLabel} stats={stats} />
+            <ExportShare entries={visibleEntries} label={activeLabel} stats={stats} />
           ) : (
             <About />
           )}
