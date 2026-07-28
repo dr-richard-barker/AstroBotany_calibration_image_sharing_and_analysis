@@ -65,9 +65,9 @@ export async function fetchGithubFolder(t: GhTarget, metaUrl?: string): Promise<
   const j = await res.json();
   if (!Array.isArray(j)) throw new Error('That path is a file, not a folder');
 
-  const images: GhFile[] = j
+  const images: GhFile[] = dedupeVideos(j
     .filter((f: any) => f.type === 'file' && (IMG_RE.test(f.name) || VIDEO_RE.test(f.name)) && f.download_url)
-    .map((f: any) => ({ name: f.name, path: f.path, downloadUrl: f.download_url, size: f.size, sha: f.sha, video: VIDEO_RE.test(f.name) }));
+    .map((f: any) => ({ name: f.name, path: f.path, downloadUrl: f.download_url, size: f.size, sha: f.sha, video: VIDEO_RE.test(f.name) })));
 
   let meta: MetaMap = new Map();
   let metaFile: string | null = null;
@@ -86,6 +86,29 @@ export async function fetchGithubFolder(t: GhTarget, metaUrl?: string): Promise<
   const folder: GhFolder = { images, meta, metaFile };
   folderCache.set(key, { time: Date.now(), folder });
   return folder;
+}
+
+// When a folder holds the same clip in several container formats (e.g. an MJPEG
+// AVI archival original next to an H.264 MP4 for the web), keep only the most
+// browser-playable one per basename so the gallery shows one tile, not several.
+const VIDEO_PREF = ['mp4', 'webm', 'ogv', 'm4v', 'mov', 'mkv', 'avi'];
+const videoRank = (name: string) => {
+  const ext = name.toLowerCase().split('.').pop() || '';
+  const i = VIDEO_PREF.indexOf(ext);
+  return i < 0 ? VIDEO_PREF.length : i;
+};
+function dedupeVideos(files: GhFile[]): GhFile[] {
+  const bestVideo = new Map<string, GhFile>(); // basename (no ext) -> preferred file
+  for (const f of files) {
+    if (!f.video) continue;
+    const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
+    const cur = bestVideo.get(base);
+    if (!cur || videoRank(f.name) < videoRank(cur.name)) bestVideo.set(base, f);
+  }
+  return files.filter(f => {
+    if (!f.video) return true;
+    return bestVideo.get(f.name.toLowerCase().replace(/\.[^.]+$/, '')) === f;
+  });
 }
 
 // Back-compat: just the images (used to validate a folder before adding it).
