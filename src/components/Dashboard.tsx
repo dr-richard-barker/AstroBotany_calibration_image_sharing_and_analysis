@@ -4,6 +4,7 @@ import type { Ec5Entry } from '../types';
 import { fetchAllComplete, getProjects, projectName, isIssSource } from '../api/epicollect';
 import { issPosition, issTrack, ISS_INCLINATION } from '../lib/iss';
 import { allResults, type AnalysisResult } from '../lib/cose-results';
+import { loadWorld, countryOf, featurePath, type GeoFeature } from '../lib/geo';
 
 // A palette derived from the CoSE accent pair, cycled for categorical series.
 const PALETTE = ['#3b6ea5', '#3fb6a8', '#6a8ec2', '#57c2b4', '#8aa9cf', '#7bccc0', '#b7791f', '#9c6ea0'];
@@ -27,6 +28,21 @@ export const Dashboard: React.FC = () => {
   const toggle = (slug: string) => setDisabled(p => { const n = new Set(p); n.has(slug) ? n.delete(slug) : n.add(slug); return n; });
 
   const agg = useMemo(() => computeAggregates(data), [data]);
+
+  // World country polygons (bundled GeoJSON), loaded once for the choropleth.
+  const [world, setWorld] = useState<GeoFeature[] | null>(null);
+  useEffect(() => { let a = true; loadWorld(import.meta.env.BASE_URL).then(w => a && setWorld(w)).catch(() => {}); return () => { a = false; }; }, []);
+
+  // Count geotagged images per country by point-in-polygon (respects toggles).
+  const countryCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!world) return m;
+    for (const p of agg.gps) {
+      const c = countryOf(world, p.lng, p.lat);
+      if (c) m.set(c.name, (m.get(c.name) || 0) + 1);
+    }
+    return m;
+  }, [world, agg.gps]);
 
   // Estimated ISS positions for timestamped entries from ISS payload sources.
   const [showIss, setShowIss] = useState(true);
@@ -148,7 +164,7 @@ export const Dashboard: React.FC = () => {
       {(agg.gps.length > 0 || iss.points.length > 0) && (
         <div className="card pad" style={{ marginBottom: 16 }}>
           <div className="card-title sb" style={{ justifyContent: 'space-between' }}>
-            <span className="row" style={{ gap: 8 }}><MapPin /> Locations ({agg.gps.length}{iss.points.length ? ` + ${iss.points.length} ISS` : ''})</span>
+            <span className="row" style={{ gap: 8 }}><MapPin /> Images by country ({countryCounts.size} countr{countryCounts.size === 1 ? 'y' : 'ies'}, {agg.gps.length} geotagged{iss.points.length ? ` + ${iss.points.length} ISS` : ''})</span>
             {iss.points.length > 0 && (
               <label className="row" style={{ gap: 6, fontSize: '.78rem', fontWeight: 500, cursor: 'pointer' }}>
                 <input type="checkbox" checked={showIss} onChange={e => setShowIss(e.target.checked)} />
@@ -157,6 +173,8 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
           <WorldMap
+            world={world}
+            countryCounts={countryCounts}
             points={agg.gps}
             colorFor={slug => PALETTE[Math.max(0, projectsInData.indexOf(slug)) % PALETTE.length]}
             issPoints={showIss ? iss.points : []}
@@ -242,55 +260,88 @@ function readVars(names: Record<string, string>): Record<string, string> {
   return out;
 }
 
-// ---- World map (fixed equirectangular projection + graticule) ----
+// ---- colour helpers (concrete hex, so SVG fill works in every browser) ----
+function parseColor(s: string): [number, number, number] {
+  s = s.trim();
+  if (s.startsWith('#')) {
+    const h = s.slice(1);
+    const n = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+  }
+  const m = s.match(/[\d.]+/g);
+  return m ? [+m[0], +m[1], +m[2]] : [0, 0, 0];
+}
+const toHex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const mix = (a: string, b: string, t: number) => { const ca = parseColor(a), cb = parseColor(b); return toHex([0, 1, 2].map(i => ca[i] + (cb[i] - ca[i]) * t)); };
+
+// ---- World choropleth (equirectangular; countries shaded by image count) ----
 const ISS_COLOR = '#e8833a';
 const WorldMap: React.FC<{
+  world: GeoFeature[] | null;
+  countryCounts: Map<string, number>;
   points: { lat: number; lng: number; label: string; project: string }[];
   colorFor: (slug: string) => string;
   issPoints?: { lat: number; lng: number; label: string; project: string }[];
   issTrack?: { lat: number; lng: number }[][];
-}> = ({ points, colorFor, issPoints = [], issTrack = [] }) => {
+}> = ({ world, countryCounts, points, colorFor, issPoints = [], issTrack = [] }) => {
   const W = 720, H = 360;
   const x = (lng: number) => ((lng + 180) / 360) * W;
   const y = (lat: number) => ((90 - lat) / 180) * H;
-  const lngLines = [-180, -150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150, 180];
-  const latLines = [-90, -60, -30, 0, 30, 60, 90];
-  const c = readVars({ '--line': '#e5e9f0', '--muted': '#5a6473', '--accent': '#3b6ea5', '--bg': '#ffffff' });
+  const c = readVars({ '--line': '#e5e9f0', '--muted': '#5a6473', '--accent': '#3b6ea5', '--accent2': '#3fb6a8', '--bg': '#ffffff', '--card': '#ffffff' });
+
+  const ocean = mix(c['--accent'], c['--bg'], 0.9);          // faint blue sea
+  const land0 = mix(c['--muted'], c['--bg'], 0.82);          // neutral land, no images
+  const heatMax = mix(c['--accent2'], '#0c3f39', 0.2);       // deep teal, most images
+  const max = Math.max(1, ...countryCounts.values());
+  const fillFor = (name: string) => {
+    const n = countryCounts.get(name) || 0;
+    if (!n) return land0;
+    return mix(land0, heatMax, 0.28 + 0.72 * Math.sqrt(n / max)); // sqrt so single hits still read
+  };
 
   return (
     <div style={{ overflowX: 'auto' }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 460, borderRadius: 8, display: 'block' }}>
         {/* ocean */}
-        <rect x={0} y={0} width={W} height={H} fill={c['--accent']} fillOpacity={0.07} stroke={c['--line']} />
-        {/* graticule */}
-        {lngLines.map(v => <line key={`x${v}`} x1={x(v)} y1={0} x2={x(v)} y2={H} stroke={c['--line']} strokeWidth={v === 0 ? 1.3 : 0.6} />)}
-        {latLines.map(v => <line key={`y${v}`} x1={0} y1={y(v)} x2={W} y2={y(v)} stroke={c['--line']} strokeWidth={v === 0 ? 1.3 : 0.6} />)}
-        {/* labels */}
-        {lngLines.filter(v => v % 60 === 0).map(v => (
-          <text key={`lx${v}`} x={x(v) + 2} y={H - 4} fontSize={9} fill={c['--muted']}>{v === 0 ? '0°' : `${Math.abs(v)}°${v < 0 ? 'W' : 'E'}`}</text>
-        ))}
-        {latLines.filter(v => v !== 0).map(v => (
-          <text key={`ly${v}`} x={3} y={y(v) - 2} fontSize={9} fill={c['--muted']}>{`${Math.abs(v)}°${v < 0 ? 'S' : 'N'}`}</text>
-        ))}
-        {/* estimated ISS ground track (drawn under the points) */}
+        <rect x={0} y={0} width={W} height={H} fill={ocean} stroke={c['--line']} />
+        {/* equator + prime meridian for orientation */}
+        <line x1={x(0)} y1={0} x2={x(0)} y2={H} stroke={c['--line']} strokeWidth={0.5} strokeOpacity={0.7} />
+        <line x1={0} y1={y(0)} x2={W} y2={y(0)} stroke={c['--line']} strokeWidth={0.5} strokeOpacity={0.7} />
+        {/* countries — shaded by image count */}
+        {world && world.map(f => {
+          const n = countryCounts.get(f.name) || 0;
+          return (
+            <path key={f.id} d={featurePath(f, x, y)} fill={fillFor(f.name)} stroke={c['--card']} strokeWidth={0.4} strokeLinejoin="round">
+              <title>{`${f.name}: ${n} image${n === 1 ? '' : 's'}`}</title>
+            </path>
+          );
+        })}
+        {!world && <text x={W / 2} y={H / 2} fontSize={12} fill={c['--muted']} textAnchor="middle">Loading world map…</text>}
+        {/* estimated ISS ground track */}
         {issTrack.map((seg, i) => (
           <polyline key={`t${i}`} points={seg.map(p => `${x(p.lng)},${y(p.lat)}`).join(' ')} fill="none" stroke={ISS_COLOR} strokeOpacity={0.55} strokeWidth={1} strokeDasharray="3 2" />
         ))}
-        {/* real geotagged points */}
+        {/* exact geotagged points (small, on top of the choropleth) */}
         {points.map((p, i) => (
-          <circle key={i} cx={x(p.lng)} cy={y(p.lat)} r={4} fill={colorFor(p.project)} fillOpacity={0.8} stroke={c['--bg']} strokeWidth={0.7}>
+          <circle key={i} cx={x(p.lng)} cy={y(p.lat)} r={2.4} fill={colorFor(p.project)} fillOpacity={0.9} stroke={c['--bg']} strokeWidth={0.5}>
             <title>{`${p.label} — ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`}</title>
           </circle>
         ))}
         {/* estimated ISS positions */}
         {issPoints.map((p, i) => (
-          <circle key={`iss${i}`} cx={x(p.lng)} cy={y(p.lat)} r={3.5} fill={ISS_COLOR} fillOpacity={0.85} stroke={c['--bg']} strokeWidth={0.6}>
+          <circle key={`iss${i}`} cx={x(p.lng)} cy={y(p.lat)} r={3.2} fill={ISS_COLOR} fillOpacity={0.85} stroke={c['--bg']} strokeWidth={0.6}>
             <title>{`${p.label} (estimated ISS) — ${p.lat.toFixed(2)}, ${p.lng.toFixed(2)}`}</title>
           </circle>
         ))}
       </svg>
-      <div className="row wrap muted" style={{ fontSize: '.72rem', marginTop: 4, gap: 12 }}>
-        <span>Equirectangular world projection · {points.length} geotagged{issPoints.length ? ` + ${issPoints.length} estimated` : ''}</span>
+      <div className="row wrap muted" style={{ fontSize: '.72rem', marginTop: 6, gap: 14, alignItems: 'center' }}>
+        {/* heat legend */}
+        <span className="row" style={{ gap: 6, alignItems: 'center' }}>
+          <span>1</span>
+          <span style={{ width: 90, height: 9, borderRadius: 5, display: 'inline-block', background: `linear-gradient(90deg, ${mix(land0, heatMax, 0.28)}, ${heatMax})` }} />
+          <span>{max} images / country</span>
+        </span>
+        <span className="row" style={{ gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: land0, display: 'inline-block', border: `1px solid ${c['--line']}` }} /> no images</span>
         {issPoints.length > 0 && <span className="row" style={{ gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 9, background: ISS_COLOR, display: 'inline-block' }} /> estimated ISS</span>}
       </div>
     </div>
