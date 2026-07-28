@@ -52,6 +52,13 @@ const BUILTIN: ProjectRef[] = [
     gh: { owner: 'dr-richard-barker', repo: 'madwest-astrobotany', ref: 'main', path: 'assets/timelapse' },
     reference: { text: 'MadWest Rocketry × AstroBotany — high-school sounding-rocket space biology: Populus tremula ± ectomycorrhiza, flight vs ground (2×2), packaged for NASA OSDR.', url: 'https://github.com/dr-richard-barker/madwest-astrobotany' },
   },
+  // TREES raw growth-arm stills (curated from the program's Drive folder).
+  {
+    slug: 'gh:dr-richard-barker/madwest-astrobotany/main/assets/trees_stills/images',
+    name: 'MadWest TREES — growth stills (Populus)', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'madwest-astrobotany', ref: 'main', path: 'assets/trees_stills/images' },
+    reference: { text: 'MadWest Rocketry × AstroBotany — Populus tremula ± ectomycorrhiza growth-arm stills, flight vs ground (2×2), packaged for NASA OSDR.', url: 'https://github.com/dr-richard-barker/madwest-astrobotany' },
+  },
   { slug: 'clinostat-collaboration', name: 'Clinostat Collaboration' },
   { slug: 'airi-microgreen-growth-biomass-analysis', name: 'AIRI Microgreen Growth & Biomass' },
   { slug: 'growing-beyond-earth-2021-2022', name: 'Growing Beyond Earth 2021–2022' },
