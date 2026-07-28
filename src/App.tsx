@@ -96,6 +96,7 @@ export default function App() {
   const activeLabel = active === ALL ? 'All projects' : projectName(active);
   const activeTool = toolById(tab);
   const activeRef = projects.find(p => p.slug === active)?.reference;
+  const activeRsml = projects.find(p => p.slug === active)?.rsmlIndex;
 
   return (
     <div className={`app ${menuOpen ? 'menu-open' : ''}`}>
@@ -176,6 +177,16 @@ export default function App() {
             <div className="card pad" style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: '.82rem' }}>
               <BookText size={16} color="var(--accent2)" style={{ flexShrink: 0, marginTop: 1 }} />
               <div><strong>Reference:</strong> {activeRef.text} <a href={activeRef.url} target="_blank" rel="noreferrer">PubMed ↗</a></div>
+            </div>
+          )}
+          {activeRsml && tab === 'database' && (
+            <div className="card pad" style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: '.82rem', borderColor: 'var(--accent2)' }}>
+              <Sprout size={16} color="var(--accent2)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div>This project ships <strong>SmartRoot RSML root traces</strong>, pre-grouped by condition &amp; genotype.{' '}
+                <a href={`https://dr-richard-barker.github.io/astroroot/dashboard.html?rsml=${encodeURIComponent(activeRsml)}`} target="_blank" rel="noreferrer">
+                  Open them in the AstroRoot dashboard ↗
+                </a>{' '}to explore archiDART root-architecture traits.
+              </div>
             </div>
           )}
 

@@ -18,7 +18,7 @@ export const ALL = '__all__';
 
 // A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
 // image folder (type 'github', slug prefixed "gh:", details in `gh`).
-export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local'; gh?: GhTarget; iss?: boolean; metaUrl?: string; reference?: { text: string; url: string }; }
+export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local'; gh?: GhTarget; iss?: boolean; metaUrl?: string; reference?: { text: string; url: string }; rsmlIndex?: string; }
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
 export const isLocal = (slug: string) => slug.startsWith('local:');
@@ -41,6 +41,7 @@ const BUILTIN: ProjectRef[] = [
     slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/APEX05/images',
     name: 'APEX05 — root architecture (Flight vs GC)', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'APEX05/images' },
+    rsmlIndex: 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/APEX05/rsml_index.json',
   },
   { slug: 'clinostat-collaboration', name: 'Clinostat Collaboration' },
   { slug: 'airi-microgreen-growth-biomass-analysis', name: 'AIRI Microgreen Growth & Biomass' },
