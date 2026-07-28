@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download } from 'lucide-react';
+import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download, FolderSearch, Table } from 'lucide-react';
 import { addProject, removeProject, addGithubSource, addLocalSource, isBuiltin, isGithub, isLocal, projectUrl, type ProjectRef } from '../api/epicollect';
-import { parseGithub, defaultName, fetchGithubImages } from '../api/github';
+import { parseGithub, defaultName, fetchGithubImages, parseGithubRepo, scanRepo, type RepoScan } from '../api/github';
 import { processUpload } from '../lib/localsource';
 
 interface Props {
@@ -37,6 +37,51 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
   const [upProg, setUpProg] = useState<{ done: number; total: number } | null>(null);
   const [hot, setHot] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Repo scan
+  const [repoInput, setRepoInput] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [scan, setScan] = useState<RepoScan | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [attach, setAttach] = useState<Set<string>>(new Set());
+  const [scanMsg, setScanMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const runScan = async () => {
+    const t = parseGithubRepo(repoInput);
+    if (!t) { setScanMsg({ ok: false, text: 'Not a GitHub repo URL (e.g. github.com/owner/repo).' }); return; }
+    setScanning(true); setScanMsg(null); setScan(null);
+    try {
+      const r = await scanRepo(t.owner, t.repo);
+      setScan(r);
+      setSel(new Set(r.folders.map(f => f.path)));
+      setAttach(new Set(r.folders.filter(f => f.suggestedMeta).map(f => f.path)));
+      if (!r.folders.length) setScanMsg({ ok: false, text: 'No image folders (≥3 images) found in this repo.' });
+    } catch (e) {
+      setScanMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally { setScanning(false); }
+  };
+
+  const addScanned = () => {
+    if (!scan) return;
+    let first = '';
+    for (const f of scan.folders) {
+      if (!sel.has(f.path)) continue;
+      const last = f.path.split('/').filter(Boolean).pop() || scan.repo;
+      const ref = addGithubSource(
+        { owner: scan.owner, repo: scan.repo, ref: scan.branch, path: f.path },
+        `${scan.repo} · ${last}`,
+        undefined,
+        attach.has(f.path) ? f.suggestedMeta?.rawUrl : undefined,
+      );
+      if (!first) first = ref.slug;
+    }
+    onProjectsChange();
+    if (first) onChangeActive(first);
+    setScanMsg({ ok: true, text: `Added ${[...sel].length} source(s) from ${scan.repo}.` });
+    setScan(null);
+  };
+  const toggle = (set: Set<string>, key: string, setter: (s: Set<string>) => void) => {
+    const n = new Set(set); n.has(key) ? n.delete(key) : n.add(key); setter(n);
+  };
 
   const doUpload = async (files: FileList | File[]) => {
     const arr = Array.from(files);
@@ -115,6 +160,59 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
             )}
           </div>
           {upMsg && <div style={{ marginTop: 8, fontSize: '.82rem', color: upMsg.ok ? 'var(--ok)' : 'var(--danger)' }}>{upMsg.text}</div>}
+        </div>
+
+        {/* Scan a whole repo */}
+        <div className="card pad">
+          <div className="card-title"><FolderSearch /> Scan a GitHub repository</div>
+          <p className="muted" style={{ fontSize: '.82rem', marginTop: -6, marginBottom: 10 }}>
+            Paste a repo link and the app walks the whole tree (one API call), finds the image folders and any processed-data files (CSV/JSON), and suggests how to pull them in — pairing each image folder with its matching data file as metadata. Works on any branch.
+          </p>
+          <div className="row wrap" style={{ gap: 8, alignItems: 'flex-end' }}>
+            <div className="field" style={{ flex: '1 1 320px', marginBottom: 0 }}><label>GitHub repository URL</label>
+              <input className="input" placeholder="https://github.com/dr-richard-barker/Hydra1-Orbital-Greenhouse"
+                value={repoInput} onChange={e => setRepoInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && runScan()} />
+            </div>
+            <button className="btn btn-primary" disabled={scanning || !repoInput.trim()} onClick={runScan}>
+              {scanning ? <Loader2 className="spin" size={16} /> : <FolderSearch size={16} />} Scan
+            </button>
+          </div>
+          {scanMsg && <div style={{ marginTop: 8, fontSize: '.82rem', color: scanMsg.ok ? 'var(--ok)' : 'var(--danger)' }}>{scanMsg.text}</div>}
+
+          {scan && scan.folders.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="muted" style={{ fontSize: '.78rem', marginBottom: 8 }}>
+                <span className="mono">{scan.owner}/{scan.repo}</span> @ <span className="mono">{scan.branch}</span> · {scan.totalImages} images · {scan.folders.length} image folders · {scan.dataFiles.length} data files
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data">
+                  <thead><tr><th style={{ width: 30 }}></th><th>Image folder</th><th style={{ textAlign: 'right' }}>Images</th><th style={{ textAlign: 'right' }}>Size</th><th>Metadata (auto-detected)</th></tr></thead>
+                  <tbody>
+                    {scan.folders.map(f => (
+                      <tr key={f.path}>
+                        <td><input type="checkbox" checked={sel.has(f.path)} onChange={() => toggle(sel, f.path, setSel)} /></td>
+                        <td><span className="mono" style={{ fontSize: '.78rem' }}>{f.path}</span></td>
+                        <td style={{ textAlign: 'right' }} className="mono">{f.count}</td>
+                        <td style={{ textAlign: 'right' }} className="mono">{(f.bytes / 1e6).toFixed(0)} MB</td>
+                        <td>
+                          {f.suggestedMeta ? (
+                            <label className="row" style={{ gap: 6, fontSize: '.78rem', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={attach.has(f.path)} onChange={() => toggle(attach, f.path, setAttach)} />
+                              <Table size={12} /> <span className="mono">{f.suggestedMeta.name}</span>
+                            </label>
+                          ) : <span className="muted" style={{ fontSize: '.76rem' }}>—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="row" style={{ gap: 8, marginTop: 10 }}>
+                <button className="btn btn-primary btn-sm" disabled={!sel.size} onClick={addScanned}><Plus size={14} /> Add {sel.size} selected source{sel.size === 1 ? '' : 's'}</button>
+                <span className="muted" style={{ fontSize: '.74rem' }}>Large folders load thumbnails lazily. Detection + calibration run per image as usual.</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* GitHub import */}

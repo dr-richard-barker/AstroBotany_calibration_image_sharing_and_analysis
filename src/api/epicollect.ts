@@ -18,7 +18,7 @@ export const ALL = '__all__';
 
 // A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
 // image folder (type 'github', slug prefixed "gh:", details in `gh`).
-export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local'; gh?: GhTarget; iss?: boolean; }
+export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local'; gh?: GhTarget; iss?: boolean; metaUrl?: string; }
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
 export const isLocal = (slug: string) => slug.startsWith('local:');
@@ -66,12 +66,12 @@ export function addProject(slug: string, name?: string): ProjectRef[] {
   if (!getProjects().some(p => p.slug === s)) writeCustom([...readCustom(), { slug: s, name: name?.trim() || prettify(s) }]);
   return getProjects();
 }
-export function addGithubSource(gh: GhTarget, name: string, iss?: boolean): ProjectRef {
+export function addGithubSource(gh: GhTarget, name: string, iss?: boolean, metaUrl?: string): ProjectRef {
   const slug = `gh:${gh.owner}/${gh.repo}/${gh.ref}/${gh.path}`;
   const existing = getProjects().find(p => p.slug === slug);
   if (existing) return existing;
   const auto = ISS_RE.test(name) || ISS_RE.test(slug);
-  const ref: ProjectRef = { slug, name, type: 'github', gh, iss: iss ?? auto };
+  const ref: ProjectRef = { slug, name, type: 'github', gh, iss: iss ?? auto, metaUrl };
   writeCustom([...readCustom(), ref]);
   return ref;
 }
@@ -191,9 +191,10 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
   // GitHub folder source: one API call lists the folder (cached in github.ts),
   // then we page over the images client-side.
   if (isGithub(slug)) {
-    const gh = getProjects().find(p => p.slug === slug)?.gh || parseGhId(slug);
+    const src = getProjects().find(p => p.slug === slug);
+    const gh = src?.gh || parseGhId(slug);
     if (!gh) throw new Error('bad GitHub source');
-    const { images, meta } = await fetchGithubFolder(gh);
+    const { images, meta } = await fetchGithubFolder(gh, src?.metaUrl);
     const entries = images.map(f => ghEntry(f, slug, metaFor(meta, f.name)));
     const start = (page - 1) * perPage;
     const value: OnePage = { entries: entries.slice(start, start + perPage), total: entries.length, hasNext: start + perPage < entries.length };

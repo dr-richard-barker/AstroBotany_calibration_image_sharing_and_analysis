@@ -44,8 +44,10 @@ const folderCache = new Map<string, { time: number; folder: GhFolder }>();
 const TTL_MS = 5 * 60_000;
 const META_RE = /^(metadata|data|images?)\.(csv|tsv|json)$/i;
 
-export async function fetchGithubFolder(t: GhTarget): Promise<GhFolder> {
-  const key = ghId(t);
+// `metaUrl` overrides the in-folder sidecar with an explicit raw CSV/JSON URL
+// (used by the repo scanner, where the processed-data file lives elsewhere).
+export async function fetchGithubFolder(t: GhTarget, metaUrl?: string): Promise<GhFolder> {
+  const key = ghId(t) + (metaUrl ? `|${metaUrl}` : '');
   const hit = folderCache.get(key);
   if (hit && Date.now() - hit.time < TTL_MS) return hit.folder;
 
@@ -64,12 +66,15 @@ export async function fetchGithubFolder(t: GhTarget): Promise<GhFolder> {
 
   let meta: MetaMap = new Map();
   let metaFile: string | null = null;
-  const sidecar = j.find((f: any) => f.type === 'file' && META_RE.test(f.name) && f.download_url);
-  if (sidecar) {
+  // Prefer an explicit external sidecar URL (from the repo scanner), else look
+  // for a metadata.csv/.json inside the folder.
+  const sidecarUrl = metaUrl || (j.find((f: any) => f.type === 'file' && META_RE.test(f.name) && f.download_url)?.download_url);
+  const sidecarName = metaUrl ? (metaUrl.split('/').pop()?.split('?')[0] || 'metadata.csv') : (j.find((f: any) => f.type === 'file' && META_RE.test(f.name))?.name);
+  if (sidecarUrl && sidecarName) {
     try {
-      const text = await (await fetch(sidecar.download_url)).text();
-      meta = /\.json$/i.test(sidecar.name) ? parseJsonMeta(text) : parseDelimitedMeta(text, /\.tsv$/i.test(sidecar.name) ? '\t' : ',');
-      if (meta.size) metaFile = sidecar.name;
+      const text = await (await fetch(sidecarUrl)).text();
+      meta = parseSidecarText(text, sidecarName);
+      if (meta.size) metaFile = sidecarName;
     } catch { /* sidecar unreadable — ignore */ }
   }
 
@@ -86,6 +91,76 @@ export async function fetchGithubImages(t: GhTarget): Promise<GhFile[]> {
 // Look up a record for an image by full name, then by basename (no extension).
 export function metaFor(meta: MetaMap, filename: string): Record<string, string> | undefined {
   return meta.get(filename.toLowerCase()) || meta.get(filename.toLowerCase().replace(/\.[^.]+$/, ''));
+}
+
+// --- whole-repo scan ---------------------------------------------------------
+// Walk a repo's git tree in ONE recursive API call, group images by folder, find
+// data files (CSV/JSON), and suggest which data file pairs with each image
+// folder — so the user can pull a multi-folder repo in without hunting.
+
+export interface ScanFolder {
+  path: string; count: number; bytes: number; sampleNames: string[];
+  suggestedMeta?: { name: string; path: string; rawUrl: string };
+}
+export interface RepoScan {
+  owner: string; repo: string; branch: string;
+  totalImages: number;
+  folders: ScanFolder[];                       // image folders (≥3 images), by count
+  dataFiles: { name: string; path: string; rawUrl: string }[];
+}
+
+export function parseGithubRepo(input: string): { owner: string; repo: string } | null {
+  const s = input.trim();
+  let m = s.match(/github\.com\/([^/]+)\/([^/#?\s]+)/i);
+  if (!m) m = s.match(/^([^/\s]+)\/([^/\s]+)$/);
+  return m ? { owner: m[1], repo: m[2].replace(/\.git$/, '') } : null;
+}
+
+const rawUrlFor = (owner: string, repo: string, branch: string, path: string) =>
+  `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path.split('/').map(encodeURIComponent).join('/')}`;
+const top2 = (p: string) => p.split('/').slice(0, 2).join('/');
+
+export async function scanRepo(owner: string, repo: string): Promise<RepoScan> {
+  const H = { Accept: 'application/vnd.github+json' };
+  const metaRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: H });
+  if (metaRes.status === 404) throw new Error('Repository not found — check owner/repo');
+  if (metaRes.status === 403) throw new Error('GitHub API rate limit reached (60/hr) — try again later');
+  if (!metaRes.ok) throw new Error(`GitHub API returned ${metaRes.status}`);
+  const branch = (await metaRes.json()).default_branch || 'main';
+
+  const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`, { headers: H });
+  if (!treeRes.ok) throw new Error(`Could not read the repo tree (${treeRes.status})`);
+  const tree = await treeRes.json();
+  const blobs: any[] = (tree.tree || []).filter((t: any) => t.type === 'blob');
+
+  const DATA_RE = /\.(csv|tsv|json)$/i;
+  const folders = new Map<string, ScanFolder>();
+  const dataFiles: RepoScan['dataFiles'] = [];
+  let totalImages = 0;
+  for (const b of blobs) {
+    const name = b.path.split('/').pop() as string;
+    const dir = b.path.includes('/') ? b.path.slice(0, b.path.lastIndexOf('/')) : '(root)';
+    if (IMG_RE.test(name)) {
+      totalImages++;
+      const g = folders.get(dir) || { path: dir, count: 0, bytes: 0, sampleNames: [] };
+      g.count++; g.bytes += b.size || 0;
+      if (g.sampleNames.length < 4) g.sampleNames.push(name);
+      folders.set(dir, g);
+    } else if (DATA_RE.test(name)) {
+      dataFiles.push({ name, path: b.path, rawUrl: rawUrlFor(owner, repo, branch, b.path) });
+    }
+  }
+
+  const list = [...folders.values()].filter(f => f.count >= 3).sort((a, b) => b.count - a.count);
+  for (const f of list) {
+    // Suggest a data file sharing the folder's top-two path segments (prefer the
+    // main output over a "background" file).
+    const near = dataFiles.filter(d => top2(d.path) === top2(f.path));
+    const chosen = near.find(d => !/background/i.test(d.name)) || near[0];
+    if (chosen) f.suggestedMeta = { name: chosen.name, path: chosen.path, rawUrl: chosen.rawUrl };
+  }
+
+  return { owner, repo, branch, totalImages, folders: list, dataFiles };
 }
 
 const FILE_KEY_RE = /^(file|filename|image|images|photo|name|img)$/i;
