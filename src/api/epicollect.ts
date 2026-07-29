@@ -45,6 +45,25 @@ const BUILTIN: ProjectRef[] = [
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'APEX05/images' },
     rsmlIndex: 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/APEX05/rsml_index.json',
   },
+  // NASA OSDR plant morphometric imaging (mirrored; discovered via tools/osdr_scan.py).
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/NASA_OSDR/OSD-120/images',
+    name: 'NASA OSD-120 — Arabidopsis roots (Flight vs Ground)', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'NASA_OSDR/OSD-120/images' },
+    reference: { text: 'NASA OSDR OSD-120 — Arabidopsis thaliana root morphometric photography (spaceflight vs ground control).', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-120' },
+  },
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/NASA_OSDR/OSD-121/images',
+    name: 'NASA OSD-121 — BRIC-16 Arabidopsis', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'NASA_OSDR/OSD-121/images' },
+    reference: { text: 'NASA OSDR OSD-121 — BRIC-16: Arabidopsis morphometric photography (spaceflight vs ground control).', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-121' },
+  },
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/NASA_OSDR/OSD-476/images',
+    name: 'NASA OSD-476 — Arabidopsis in lunar regolith', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'NASA_OSDR/OSD-476/images' },
+    reference: { text: 'NASA OSDR OSD-476 — Arabidopsis grown in Apollo lunar regolith (plate/shoot morphometric photography).', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-476' },
+  },
   // MadWest Rocketry × AstroBotany — TREES launch: Populus tremula (aspen) ±
   // ectomycorrhiza, flight vs ground (2×2). Growth-arm timelapses (H.264 MP4)
   // committed in the repo; a metadata.csv sidecar labels each by treatment.
