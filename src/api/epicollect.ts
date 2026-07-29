@@ -62,7 +62,15 @@ const BUILTIN: ProjectRef[] = [
     slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/NASA_OSDR/OSD-476/images',
     name: 'NASA OSD-476 — Arabidopsis in lunar regolith', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'NASA_OSDR/OSD-476/images' },
-    reference: { text: 'NASA OSDR OSD-476 — Arabidopsis grown in Apollo lunar regolith (plate/shoot morphometric photography).', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-476' },
+    reference: { text: 'NASA OSDR OSD-476 — Arabidopsis grown in Apollo lunar regolith (plate/shoot morphometric photography). Paired with the Lunar_regolith_AWG shoot analysis.', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-476' },
+  },
+  // TICTOC — cotton spaceflight root architecture (images + timelapse + RSML).
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/TICTOC/images',
+    name: 'TICTOC — cotton roots (Flight vs Ground)', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'TICTOC/images' },
+    reference: { text: 'TICTOC — cotton (Gossypium) spaceflight root architecture, flight (ISS) vs ground control, days 3–6.', url: 'https://github.com/dr-richard-barker/TICTOC' },
+    rsmlIndex: 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/TICTOC/rsml_index.json',
   },
   // MadWest Rocketry × AstroBotany — TREES launch: Populus tremula (aspen) ±
   // ectomycorrhiza, flight vs ground (2×2). Growth-arm timelapses (H.264 MP4)
