@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText, ShieldCheck, LogOut } from 'lucide-react';
+import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText, ShieldCheck, LogOut, Library } from 'lucide-react';
 import { TOOLS, toolById } from './tools';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
@@ -13,6 +13,7 @@ import { ExportShare } from './components/ExportShare';
 import { About } from './components/About';
 import { ToolFrame } from './components/ToolFrame';
 import { MetadataReview } from './components/MetadataReview';
+import { Datasets } from './components/Datasets';
 import { Admin } from './components/Admin';
 import { AuthGate } from './components/AuthGate';
 import { isAdmin, signOut, type AuthState } from './lib/auth';
@@ -24,6 +25,7 @@ type Tab = string;
 const NAV: { id: Tab; label: string; sub: string; icon: React.ComponentType<any> }[] = [
   { id: 'database', label: 'Database', sub: 'Browse & analyze', icon: DbIcon },
   { id: 'dashboard', label: 'Dashboard', sub: 'Metadata analytics', icon: BarChart3 },
+  { id: 'datasets', label: 'Datasets', sub: 'Provenance & citations', icon: Library },
   { id: 'metadata', label: 'Metadata review', sub: 'Conserved vs variant', icon: ClipboardList },
   { id: 'contribute', label: 'Contribute', sub: 'Projects & app', icon: UploadCloud },
   { id: 'export', label: 'Export & share', sub: 'Manifest · CSV', icon: Share2 },
@@ -241,6 +243,8 @@ function AppInner({ auth }: { auth: AuthState }) {
               currentUserId={currentUserId} onDeleteUpload={onDeleteUpload} />
           ) : tab === 'dashboard' ? (
             <Dashboard />
+          ) : tab === 'datasets' ? (
+            <Datasets projects={visibleProjects} onOpen={changeActive} />
           ) : tab === 'metadata' ? (
             <MetadataReview />
           ) : tab === 'admin' && admin ? (

@@ -20,7 +20,13 @@ export const ALL = '__all__';
 
 // A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
 // image folder (type 'github', slug prefixed "gh:", details in `gh`).
-export interface ProjectRef { slug: string; name: string; type?: 'ec5' | 'github' | 'local' | 'cloud'; gh?: GhTarget; iss?: boolean; metaUrl?: string; reference?: { text: string; url: string }; rsmlIndex?: string; }
+export interface ProjectRef {
+  slug: string; name: string; type?: 'ec5' | 'github' | 'local' | 'cloud';
+  gh?: GhTarget; iss?: boolean; metaUrl?: string;
+  reference?: { text: string; url: string }; rsmlIndex?: string;
+  // Curated provenance for the Datasets tab.
+  provenance?: { organism?: string; conditions?: string; description?: string; source?: string };
+}
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
 export const isLocal = (slug: string) => slug.startsWith('local:');
@@ -44,6 +50,7 @@ const BUILTIN: ProjectRef[] = [
     name: 'APEX05 — root architecture (Flight vs GC)', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'APEX05/images' },
     rsmlIndex: 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/APEX05/rsml_index.json',
+    provenance: { organism: 'Arabidopsis thaliana', conditions: 'Flight vs Ground control · days 1–8 · genotypes Col-0/cax2-2/cax2-3/rbohD', description: 'Root architecture: 120 curated images + 424 SmartRoot RSML traces (via AstroRoot).', source: 'Google Drive → GitHub mirror' },
   },
   // NASA OSDR plant morphometric imaging (mirrored; discovered via tools/osdr_scan.py).
   {
@@ -51,18 +58,21 @@ const BUILTIN: ProjectRef[] = [
     name: 'NASA OSD-120 — Arabidopsis roots (Flight vs Ground)', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'NASA_OSDR/OSD-120/images' },
     reference: { text: 'NASA OSDR OSD-120 — Arabidopsis thaliana root morphometric photography (spaceflight vs ground control).', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-120' },
+    provenance: { organism: 'Arabidopsis thaliana', conditions: 'Flight vs Ground control · days 3–13 · genotypes Ws/Col-0/Col-0 phyD · light/dark', description: '48 curated root morphometric photographs.', source: 'NASA OSDR OSD-120' },
   },
   {
     slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/NASA_OSDR/OSD-121/images',
     name: 'NASA OSD-121 — BRIC-16 Arabidopsis', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'NASA_OSDR/OSD-121/images' },
     reference: { text: 'NASA OSDR OSD-121 — BRIC-16: Arabidopsis morphometric photography (spaceflight vs ground control).', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-121' },
+    provenance: { organism: 'Arabidopsis thaliana', conditions: 'Flight vs Ground control', description: 'BRIC-16: 26 morphometric photographs of gravity-perception / cytoskeleton development.', source: 'NASA OSDR OSD-121' },
   },
   {
     slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/NASA_OSDR/OSD-476/images',
     name: 'NASA OSD-476 — Arabidopsis in lunar regolith', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'NASA_OSDR/OSD-476/images' },
     reference: { text: 'NASA OSDR OSD-476 — Arabidopsis grown in Apollo lunar regolith (plate/shoot morphometric photography). Paired with the Lunar_regolith_AWG shoot analysis.', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-476' },
+    provenance: { organism: 'Arabidopsis thaliana', conditions: 'Grown in Apollo lunar regolith', description: '20 raw plate scans (OSDR) + 20 shoot-analysis stills (Lunar_regolith_AWG).', source: 'NASA OSDR OSD-476 + AWG repo' },
   },
   // TICTOC — cotton spaceflight root architecture (images + timelapse + RSML).
   {
@@ -71,6 +81,15 @@ const BUILTIN: ProjectRef[] = [
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'TICTOC/images' },
     reference: { text: 'TICTOC — cotton (Gossypium) spaceflight root architecture, flight (ISS) vs ground control, days 3–6.', url: 'https://github.com/dr-richard-barker/TICTOC' },
     rsmlIndex: 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/TICTOC/rsml_index.json',
+    provenance: { organism: 'Gossypium (cotton)', conditions: 'Flight (ISS) vs Ground control · days 3–6', description: 'Cotton spaceflight root architecture: images, timelapse and 198 SmartRoot RSML traces.', source: 'TICTOC repo' },
+  },
+  // APEX03 (Advanced Plant EXperiments 03) — Arabidopsis phenotype photos; related NASA study OSD-193.
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/APEX03',
+    name: 'APEX03 — Arabidopsis Sku6 vs Col-0 (Flight vs Ground)', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'APEX03' },
+    reference: { text: 'NASA OSDR OSD-193 — Sku6 mutant vs Col-0 Arabidopsis roots, ground vs spaceflight (APEX03).', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-193' },
+    provenance: { organism: 'Arabidopsis thaliana', conditions: 'Flight vs Ground control · 11 days · genotypes Col-0/SKU5/SKU6/WS', description: '11-day phenotype photographs from the APEX03 spaceflight experiment; related to the OSD-193 root transcriptomics study.', source: 'GitHub + NASA OSDR OSD-193' },
   },
   // MadWest Rocketry × AstroBotany — TREES launch: Populus tremula (aspen) ±
   // ectomycorrhiza, flight vs ground (2×2). Growth-arm timelapses (H.264 MP4)
@@ -80,6 +99,7 @@ const BUILTIN: ProjectRef[] = [
     name: 'MadWest TREES — Populus ± ECM (Flight vs Ground)', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'madwest-astrobotany', ref: 'main', path: 'assets/timelapse' },
     reference: { text: 'MadWest Rocketry × AstroBotany — high-school sounding-rocket space biology: Populus tremula ± ectomycorrhiza, flight vs ground (2×2), packaged for NASA OSDR.', url: 'https://github.com/dr-richard-barker/madwest-astrobotany' },
+    provenance: { organism: 'Populus tremula (aspen)', conditions: '2×2: ± ectomycorrhiza × Flight/Ground', description: '5 H.264 growth timelapse movies (TREES — the program’s 3rd rocket launch).', source: 'MadWest Rocketry × AstroBotany' },
   },
   // TREES raw growth-arm stills (curated from the program's Drive folder).
   {
@@ -87,6 +107,7 @@ const BUILTIN: ProjectRef[] = [
     name: 'MadWest TREES — growth stills (Populus)', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'madwest-astrobotany', ref: 'main', path: 'assets/trees_stills/images' },
     reference: { text: 'MadWest Rocketry × AstroBotany — Populus tremula ± ectomycorrhiza growth-arm stills, flight vs ground (2×2), packaged for NASA OSDR.', url: 'https://github.com/dr-richard-barker/madwest-astrobotany' },
+    provenance: { organism: 'Populus tremula (aspen)', conditions: '2×2: ± ectomycorrhiza × Flight/Ground', description: '126 curated growth-arm stills (6 timepoints × 21 plants).', source: 'MadWest Rocketry × AstroBotany' },
   },
   { slug: 'clinostat-collaboration', name: 'Clinostat Collaboration' },
   { slug: 'airi-microgreen-growth-biomass-analysis', name: 'AIRI Microgreen Growth & Biomass' },
@@ -99,12 +120,14 @@ const BUILTIN: ProjectRef[] = [
     name: 'ABRS Roots time-lapse — Flight', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'ABRS_NASA_Roots_TimeLapse/ABRS_Flight' },
     reference: { text: 'Paul, Zupanska, Schultz & Ferl (2013). Organ-specific remodeling of the Arabidopsis transcriptome in response to spaceflight. BMC Plant Biology 13:112. doi:10.1186/1471-2229-13-112', url: 'https://pubmed.ncbi.nlm.nih.gov/23919896/' },
+    provenance: { organism: 'Arabidopsis thaliana', conditions: 'Spaceflight (ISS)', description: 'ABRS root-growth time-lapse (Flight) — image sequence + playable movies.', source: 'NASA ABRS (Paul et al. 2013)' },
   },
   {
     slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/ABRS_NASA_Roots_TimeLapse/ABRS_Ground_control',
     name: 'ABRS Roots time-lapse — Ground control', type: 'github',
     gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'ABRS_NASA_Roots_TimeLapse/ABRS_Ground_control' },
     reference: { text: 'Paul, Zupanska, Schultz & Ferl (2013). Organ-specific remodeling of the Arabidopsis transcriptome in response to spaceflight. BMC Plant Biology 13:112. doi:10.1186/1471-2229-13-112', url: 'https://pubmed.ncbi.nlm.nih.gov/23919896/' },
+    provenance: { organism: 'Arabidopsis thaliana', conditions: 'Ground control', description: 'ABRS root-growth time-lapse (Ground control) — image sequence + playable movies.', source: 'NASA ABRS (Paul et al. 2013)' },
   },
 ];
 
