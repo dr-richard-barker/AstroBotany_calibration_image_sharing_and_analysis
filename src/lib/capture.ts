@@ -2,10 +2,13 @@
 // The Epicollect5 media endpoint sends Access-Control-Allow-Origin: *, so images
 // can be loaded with crossOrigin='anonymous' and read back off a canvas without
 // tainting it.
+import { isTiffUrl, tiffImageData } from './tiff';
 
 // Load a (possibly cross-origin) image URL into an ImageData, capped so
-// detection stays fast on large photos.
+// detection stays fast on large photos. TIFF is decoded via UTIF (browsers can't
+// draw it to a canvas directly).
 export async function urlToImageData(url: string, maxEdge = 1400): Promise<ImageData> {
+  if (isTiffUrl(url)) return tiffImageData(url, maxEdge);
   const img = await loadImage(url);
   const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * scale));

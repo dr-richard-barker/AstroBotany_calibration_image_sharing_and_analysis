@@ -7,6 +7,7 @@ import { saveMarker, clearMarker } from '../api/epicollect';
 import { getResults, type AnalysisResult } from '../lib/cose-results';
 import { TOOLS } from '../tools';
 import { QuadAnnotator } from './QuadAnnotator';
+import { SmartImg } from './SmartImg';
 
 interface Props {
   entry: Ec5Entry;
@@ -132,7 +133,7 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
           </>
         ) : (
           <div style={{ position: 'relative' }}>
-            <img src={entry.photoUrl} alt={entry.title} crossOrigin="anonymous" style={{ display: 'block', width: '100%', borderRadius: 8 }} />
+            <SmartImg src={entry.photoUrl} alt={entry.title} crossOrigin="anonymous" style={{ display: 'block', width: '100%', borderRadius: 8 }} />
             {overlayQuad && (
               <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
                 <polygon points={overlayQuad.map(p => `${p.x * 100},${p.y * 100}`).join(' ')} style={{ fill: 'var(--accent2)', stroke: 'var(--accent2)' }} fillOpacity={0.18} strokeWidth="0.6" vectorEffect="non-scaling-stroke" />

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Database as DbIcon, CheckCircle2, Images, ImageIcon, Loader2, ChevronDown, FileText, LineChart, Crosshair, PlayCircle, Film } from 'lucide-react';
 import type { Ec5Entry, MarkerAnalysis } from '../types';
 import { MarkerInspector } from './MarkerInspector';
+import { SmartImg } from './SmartImg';
 import { projectName, saveMarker } from '../api/epicollect';
 import { allResults } from '../lib/cose-results';
 import { urlToImageData } from '../lib/capture';
@@ -190,7 +191,7 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
               {filtered.map(e => (
                 <div key={e.uuid} className={`tile ${selectedId === e.uuid ? 'sel' : ''}`} onClick={() => setSelectedId(e.uuid)}>
                   <div className="thumb">
-                    {e.thumbUrl ? <img src={e.thumbUrl} alt={e.title} loading="lazy" crossOrigin="anonymous" />
+                    {e.thumbUrl ? <SmartImg src={e.thumbUrl} alt={e.title} loading="lazy" crossOrigin="anonymous" />
                       : e.videoUrl ? <div style={{ display: 'grid', placeItems: 'center', height: '100%', gap: 6, background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--card)), var(--card))', color: 'var(--accent)' }}>
                           <PlayCircle size={34} /><span style={{ fontSize: '.68rem', color: 'var(--muted)' }}>time-lapse video</span>
                         </div>
