@@ -91,6 +91,15 @@ const BUILTIN: ProjectRef[] = [
     reference: { text: 'NASA OSDR OSD-193 — Sku6 mutant vs Col-0 Arabidopsis roots, ground vs spaceflight (APEX03).', url: 'https://osdr.nasa.gov/bio/repo/data/studies/OSD-193' },
     provenance: { organism: 'Arabidopsis thaliana', conditions: 'Flight vs Ground control · 11 days · genotypes Col-0/SKU5/SKU6/WS', description: '11-day phenotype photographs from the APEX03 spaceflight experiment; related to the OSD-193 root transcriptomics study.', source: 'GitHub + NASA OSDR OSD-193' },
   },
+  // TASTIE — tomato root architecture ± Trichoderma (images + RSML; RNA-seq excluded).
+  {
+    slug: 'gh:dr-richard-barker/image-analysis-software-and-R-codes/master/TASTIE_tomato/images',
+    name: 'TASTIE — tomato roots ± Trichoderma', type: 'github',
+    gh: { owner: 'dr-richard-barker', repo: 'image-analysis-software-and-R-codes', ref: 'master', path: 'TASTIE_tomato/images' },
+    reference: { text: 'TASTIE — tomato (Solanum lycopersicum) root architecture ± Trichoderma fungi (APEX10/SVT proposal).', url: 'https://github.com/dr-richard-barker/TASTIE_tomato' },
+    rsmlIndex: 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/TASTIE_tomato/rsml_index.json',
+    provenance: { organism: 'Solanum lycopersicum (tomato)', conditions: 'Control vs + Trichoderma (fungi)', description: '48 root/plant images + 49 SmartRoot RSML traces (via AstroRoot); RSML basenames match the photos.', source: 'TASTIE_tomato repo' },
+  },
   // MadWest Rocketry × AstroBotany — TREES launch: Populus tremula (aspen) ±
   // ectomycorrhiza, flight vs ground (2×2). Growth-arm timelapses (H.264 MP4)
   // committed in the repo; a metadata.csv sidecar labels each by treatment.
