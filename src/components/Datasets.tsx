@@ -1,7 +1,11 @@
 import React from 'react';
-import { Database as DbIcon, Github, Cloud, HardDrive, Sprout, BookText, Rocket } from 'lucide-react';
+import { Database as DbIcon, Github, Cloud, HardDrive, Sprout, BookText, Rocket, GitBranch } from 'lucide-react';
 import { type ProjectRef, isGithub, isLocal } from '../api/epicollect';
 import { isCloud } from '../lib/uploads';
+
+// One-click: load every RSML dataset into the AstroRoot dashboard viewer.
+const ALL_RSML = 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/all_rsml_index.json';
+const ALL_RSML_LINK = `https://dr-richard-barker.github.io/astroroot/dashboard.html?rsml=${encodeURIComponent(ALL_RSML)}`;
 
 function badge(p: ProjectRef) {
   if (isCloud(p.slug)) return { icon: Cloud, label: 'Community', color: 'var(--accent2)' };
@@ -26,6 +30,9 @@ export const Datasets: React.FC<{ projects: ProjectRef[]; onOpen: (slug: string)
         <div className="eyebrow">Provenance</div>
         <h1>Datasets</h1>
         <p>Every collection in the database — its organism, conditions, what it contains, and how to cite it. Open any dataset to browse and analyse it.</p>
+        <a href={ALL_RSML_LINK} target="_blank" rel="noreferrer" className="btn btn-sm btn-teal" style={{ marginTop: 4 }}>
+          <GitBranch size={14} /> Explore all root traces in AstroRoot
+        </a>
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
