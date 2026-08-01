@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText, ShieldCheck, LogOut, Library } from 'lucide-react';
+import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText, ShieldCheck, LogOut, Library, Table } from 'lucide-react';
 import { TOOLS, toolById } from './tools';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
@@ -16,6 +16,7 @@ import { MetadataReview } from './components/MetadataReview';
 import { Datasets } from './components/Datasets';
 import { Admin } from './components/Admin';
 import { AuthGate } from './components/AuthGate';
+import { MetadataEditor } from './components/MetadataEditor';
 import { isAdmin, signOut, type AuthState } from './lib/auth';
 import { loadHidden, hiddenSets, hideItem, type HiddenItem } from './lib/moderation';
 import { deleteCloudUpload } from './lib/uploads';
@@ -27,6 +28,7 @@ const NAV: { id: Tab; label: string; sub: string; icon: React.ComponentType<any>
   { id: 'dashboard', label: 'Dashboard', sub: 'Metadata analytics', icon: BarChart3 },
   { id: 'datasets', label: 'Datasets', sub: 'Provenance & citations', icon: Library },
   { id: 'metadata', label: 'Metadata review', sub: 'Conserved vs variant', icon: ClipboardList },
+  { id: 'enrich', label: 'Enrich', sub: 'Generate sidecars', icon: Table },
   { id: 'contribute', label: 'Contribute', sub: 'Projects & app', icon: UploadCloud },
   { id: 'export', label: 'Export & share', sub: 'Manifest · CSV', icon: Share2 },
   { id: 'about', label: 'About', sub: 'Marker & pipeline', icon: Info },
@@ -247,6 +249,8 @@ function AppInner({ auth }: { auth: AuthState }) {
             <Datasets projects={visibleProjects} onOpen={changeActive} />
           ) : tab === 'metadata' ? (
             <MetadataReview />
+          ) : tab === 'enrich' ? (
+            <MetadataEditor projects={visibleProjects} onProjectsChange={refreshProjects} />
           ) : tab === 'admin' && admin ? (
             <Admin projects={projects} hidden={hidden} myId={auth.session?.user?.id} onChanged={reloadHidden} />
           ) : tab === 'contribute' ? (

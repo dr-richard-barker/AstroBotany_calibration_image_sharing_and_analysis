@@ -21,11 +21,16 @@ is read-only via its API, so contributions to an Epicollect5 project happen in
 the Epicollect5 app/web form; to push your *own* images + metadata into the
 viewer, commit them to a GitHub repo folder and add it as a source.
 
-**GitHub metadata sidecar.** Add a `metadata.csv` (or `.json`) next to the images
-in the folder. A `filename` column joins each row to its image; `species`,
-`latitude`/`longitude`, `title`, and any other columns are attached to the
-entry (shown in the inspector, searchable, on the dashboard map, and exported).
-Anything not in the sidecar still falls back to metadata parsed from filenames.
+**GitHub metadata sidecar.** Add a `metadata.csv` (or `.json`) next to the images in the folder. A `filename` column joins each row to its image. Supported standard schema columns include:
+- `filename` (required)
+- `species` (biological species, e.g. *Landoltia punctata*)
+- `genotype` (e.g. mutant or ecotype)
+- `treatment` (experimental conditions)
+- `glds_accession` (OSDR/GeneLab ID)
+- `date_taken` (capture date/time)
+- `notes` (additional comments)
+
+Anything not in the sidecar falls back to metadata parsed from filenames. To easily generate this sidecar file from raw image files, use the `generate-sidecar` CLI tool provided under `tools/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for more setup details.
 
 The **Database** tab filters entries by *All / With images / Analyzed* and by
 project (toggle chips), and the **Dashboard** tab presents cross-project

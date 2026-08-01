@@ -71,10 +71,40 @@ export async function fetchGithubFolder(t: GhTarget, metaUrl?: string): Promise<
 
   let meta: MetaMap = new Map();
   let metaFile: string | null = null;
-  // Prefer an explicit external sidecar URL (from the repo scanner), else look
-  // for a metadata.csv/.json inside the folder.
-  const sidecarUrl = metaUrl || (j.find((f: any) => f.type === 'file' && META_RE.test(f.name) && f.download_url)?.download_url);
-  const sidecarName = metaUrl ? (metaUrl.split('/').pop()?.split('?')[0] || 'metadata.csv') : (j.find((f: any) => f.type === 'file' && META_RE.test(f.name))?.name);
+  
+  let sidecarUrl = metaUrl;
+  let sidecarName = metaUrl ? (metaUrl.split('/').pop()?.split('?')[0] || 'metadata.csv') : null;
+
+  if (!sidecarUrl) {
+    // 1. Try to find datapackage.json first
+    const dpFile = j.find((f: any) => f.type === 'file' && f.name.toLowerCase() === 'datapackage.json' && f.download_url);
+    if (dpFile) {
+      try {
+        const dpText = await (await fetch(dpFile.download_url)).text();
+        const dp = JSON.parse(dpText);
+        const resMeta = dp.resources?.find((r: any) => r.path && (r.path.endsWith('.csv') || r.path.endsWith('.json')));
+        if (resMeta) {
+          const targetFile = j.find((f: any) => f.type === 'file' && f.name.toLowerCase() === resMeta.path.toLowerCase() && f.download_url);
+          if (targetFile) {
+            sidecarUrl = targetFile.download_url;
+            sidecarName = targetFile.name;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to parse datapackage.json:', err);
+      }
+    }
+    
+    // 2. Fall back to standard metadata.csv/json regex search
+    if (!sidecarUrl) {
+      const match = j.find((f: any) => f.type === 'file' && META_RE.test(f.name) && f.download_url);
+      if (match) {
+        sidecarUrl = match.download_url;
+        sidecarName = match.name;
+      }
+    }
+  }
+
   if (sidecarUrl && sidecarName) {
     try {
       const text = await (await fetch(sidecarUrl)).text();
@@ -264,11 +294,16 @@ function splitLine(line: string, delim: string): string[] {
   return out;
 }
 
-// Pull metadata encoded in a filename (the ExoLab imaging rig style:
-// "imaging_lens_position_7.0_cam_0_1730496602.jpg").
-export function parseFilenameMeta(name: string): { fields: { name: string; value: string }[]; capturedAt: string | null } {
+export function parseFilenameMeta(name: string): { 
+  fields: { name: string; value: string }[]; 
+  capturedAt: string | null;
+  species?: string;
+  genotype?: string;
+  treatment?: string;
+} {
   const fields: { name: string; value: string }[] = [];
   let capturedAt: string | null = null;
+  
   // 1) explicit YYYY_MM_DD[_HH_MM_SS] (e.g. ABRS "2010_02_14_09_36_44-0072.jpg")
   const dtm = name.match(/(\d{4})[_.-](\d{2})[_.-](\d{2})(?:[_.T-](\d{2})[_.:-](\d{2})[_.:-](\d{2}))?/);
   if (dtm && +dtm[1] > 1990 && +dtm[1] < 2100) {
@@ -289,5 +324,24 @@ export function parseFilenameMeta(name: string): { fields: { name: string; value
   if (cam) fields.push({ name: 'Camera', value: cam[1] });
   const fps = name.match(/(\d+)\s*fps/i);
   if (fps) fields.push({ name: 'Frame rate', value: `${fps[1]} fps` });
-  return { fields, capturedAt };
+
+  // Infer biology from keywords in filename
+  let species: string | undefined;
+  const name_lower = name.toLowerCase();
+  if (/landoltia|londultia|punctata/i.test(name_lower)) species = 'Landoltia punctata';
+  else if (/lemna|minor/i.test(name_lower)) species = 'Lemna minor';
+  else if (/wolffia/i.test(name_lower)) species = 'Wolffia arrhiza';
+  else if (/azolla|azola/i.test(name_lower)) species = 'Azolla caroliniana';
+  else if (/arabidopsis|thaliana/i.test(name_lower)) species = 'Arabidopsis thaliana';
+
+  let genotype: string | undefined;
+  if (/col-0|col0/i.test(name_lower)) genotype = 'Col-0';
+  else if (/pgm/i.test(name_lower)) genotype = 'pgm1-1';
+
+  let treatment: string | undefined;
+  if (/gibberellic|ga/i.test(name_lower)) treatment = 'Gibberellic Acid (GA)';
+  else if (/clinostat|clino/i.test(name_lower)) treatment = 'Clinostat';
+  else if (/control|ctrl|water/i.test(name_lower)) treatment = 'Control';
+
+  return { fields, capturedAt, species, genotype, treatment };
 }

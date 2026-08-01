@@ -30,10 +30,14 @@ type Filter = 'all' | 'withPhoto' | 'analyzed';
 const genoOf = (e: Ec5Entry): string =>
   e.fields.find(f => /^(genotype|ecotype|cultivar|accession|line|strain)$/i.test(f.name.trim()))?.value.trim() || '';
 
+const treatOf = (e: Ec5Entry): string =>
+  e.fields.find(f => /^(treatment|growth condition|dose)$/i.test(f.name.trim()))?.value.trim() || '';
+
 export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, showProject, onLoadMore, onMarkerChanged, onOpenTool, onHideImage, currentUserId, onDeleteUpload }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [disabled, setDisabled] = useState<Set<string>>(new Set()); // projects toggled off
   const [disabledGeno, setDisabledGeno] = useState<Set<string>>(new Set()); // genotypes toggled off
+  const [disabledTreat, setDisabledTreat] = useState<Set<string>>(new Set()); // treatments toggled off
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Batch marker derivation: auto-detect the calibration marker across loaded
@@ -80,22 +84,24 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
 
   const projectsInView = useMemo(() => [...new Set(entries.map(e => e.project))], [entries]);
   const genotypesInView = useMemo(() => [...new Set(entries.map(genoOf).filter(Boolean))].sort(), [entries]);
+  const treatmentsInView = useMemo(() => [...new Set(entries.map(treatOf).filter(Boolean))].sort(), [entries]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return entries.filter(e => {
       if (disabled.has(e.project)) return false;
-      // Strict genotype filter: once any genotype chip is toggled off, show only
-      // entries whose genotype is still enabled — entries with no genotype label
-      // are hidden too (not just the deselected genotypes).
+      // Strict genotype filter
       const g = genoOf(e);
       if (disabledGeno.size > 0 && (!g || disabledGeno.has(g))) return false;
+      // Strict treatment filter
+      const t = treatOf(e);
+      if (disabledTreat.size > 0 && (!t || disabledTreat.has(t))) return false;
       if (filter === 'withPhoto' && !e.photoUrl) return false;
       if (filter === 'analyzed' && !e.marker?.markerFound) return false;
       if (!q) return true;
       return [e.title, e.species, ...e.fields.map(f => f.value)].filter(Boolean).join(' ').toLowerCase().includes(q);
     });
-  }, [entries, query, filter, disabled, disabledGeno]);
+  }, [entries, query, filter, disabled, disabledGeno, disabledTreat]);
 
   const selected = filtered.find(e => e.uuid === selectedId) || null;
   const withPhoto = entries.filter(e => e.photoUrl).length;
@@ -105,6 +111,8 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
     setDisabled(prev => { const n = new Set(prev); n.has(slug) ? n.delete(slug) : n.add(slug); return n; });
   const toggleGeno = (g: string) =>
     setDisabledGeno(prev => { const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n; });
+  const toggleTreat = (t: string) =>
+    setDisabledTreat(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n; });
 
   return (
     <div>
@@ -175,6 +183,31 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
           })}
           {disabledGeno.size > 0 && (
             <button className="btn btn-sm btn-ghost" style={{ padding: '2px 8px', fontSize: '.72rem' }} onClick={() => setDisabledGeno(new Set())}>Reset</button>
+          )}
+        </div>
+      )}
+
+      {treatmentsInView.length > 1 && (
+        <div className="row wrap" style={{ gap: 6, marginBottom: 14, alignItems: 'center' }}>
+          <span className="muted" style={{ fontSize: '.76rem', marginRight: 2 }}>Treatment:</span>
+          {treatmentsInView.map(t => {
+            const on = !disabledTreat.has(t);
+            const n = entries.filter(e => treatOf(e) === t).length;
+            return (
+              <button key={t} onClick={() => toggleTreat(t)}
+                className="chip" style={{
+                  cursor: 'pointer',
+                  background: on ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--card)',
+                  color: on ? 'var(--accent)' : 'var(--muted)',
+                  borderColor: on ? 'color-mix(in srgb, var(--accent) 40%, transparent)' : 'var(--line)',
+                  opacity: on ? 1 : 0.6,
+                }}>
+                {on ? <CheckCircle2 size={12} /> : null} {t} ({n})
+              </button>
+            );
+          })}
+          {disabledTreat.size > 0 && (
+            <button className="btn btn-sm btn-ghost" style={{ padding: '2px 8px', fontSize: '.72rem' }} onClick={() => setDisabledTreat(new Set())}>Reset</button>
           )}
         </div>
       )}
