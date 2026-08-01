@@ -103,3 +103,28 @@ export async function deleteProjectRsmls(projectSlug: string): Promise<void> {
     req.onerror = () => reject(t.error);
   });
 }
+
+export async function getAllRsmls(): Promise<{ key: string; filename: string; content: string }[]> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const t = db.transaction('rsml', 'readonly');
+    const store = t.objectStore('rsml');
+    const results: { key: string; filename: string; content: string }[] = [];
+    const req = store.openCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        const k = String(cursor.key);
+        results.push({
+          key: k,
+          filename: k.split('::')[1] || k,
+          content: cursor.value as string
+        });
+        cursor.continue();
+      } else {
+        resolve(results);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
