@@ -1,9 +1,11 @@
-// Tiny promise wrapper over IndexedDB for locally-uploaded image sources.
-// Two stores: "sources" (metadata for an uploaded batch) and "images" (the
-// compressed image blobs, keyed by `${sourceId}::${filename}`).
+// Tiny promise wrapper over IndexedDB for locally-uploaded image sources and RSML traces.
+// Three stores:
+// - "sources": metadata for an uploaded batch, keyed by id.
+// - "images": compressed image blobs, keyed by `${sourceId}::${filename}`.
+// - "rsml": raw RSML XML strings, keyed by `${projectSlug}::${filename}`.
 
 const DB_NAME = 'astrobotany-local';
-const VERSION = 1;
+const VERSION = 2;
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -12,6 +14,7 @@ function open(): Promise<IDBDatabase> {
       const db = req.result;
       if (!db.objectStoreNames.contains('sources')) db.createObjectStore('sources', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('images')) db.createObjectStore('images');
+      if (!db.objectStoreNames.contains('rsml')) db.createObjectStore('rsml');
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -48,5 +51,55 @@ export async function idbDeleteSource(id: string): Promise<void> {
     };
     t.oncomplete = () => { db.close(); resolve(); };
     t.onerror = () => reject(t.error);
+  });
+}
+
+// RSML storage helpers
+export async function saveRsml(projectSlug: string, filename: string, content: string): Promise<void> {
+  await idbPut('rsml', content, `${projectSlug}::${filename}`);
+}
+
+export async function getProjectRsmls(projectSlug: string): Promise<{ filename: string; content: string }[]> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const t = db.transaction('rsml', 'readonly');
+    const store = t.objectStore('rsml');
+    const results: { filename: string; content: string }[] = [];
+    const range = IDBKeyRange.bound(projectSlug + '::', projectSlug + '::\uffff');
+    const req = store.openCursor(range);
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        const key = String(cursor.key);
+        results.push({
+          filename: key.substring(projectSlug.length + 2),
+          content: cursor.value as string
+        });
+        cursor.continue();
+      } else {
+        resolve(results);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteProjectRsmls(projectSlug: string): Promise<void> {
+  const db = await open();
+  return new Promise<void>((resolve, reject) => {
+    const t = db.transaction('rsml', 'readwrite');
+    const store = t.objectStore('rsml');
+    const range = IDBKeyRange.bound(projectSlug + '::', projectSlug + '::\uffff');
+    const req = store.openCursor(range);
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        store.delete(cursor.key);
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+    req.onerror = () => reject(t.error);
   });
 }

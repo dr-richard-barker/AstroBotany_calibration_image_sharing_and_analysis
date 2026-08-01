@@ -17,6 +17,7 @@ import { Datasets } from './components/Datasets';
 import { Admin } from './components/Admin';
 import { AuthGate } from './components/AuthGate';
 import { MetadataEditor } from './components/MetadataEditor';
+import { RsmlUploader } from './components/RsmlUploader';
 import { isAdmin, signOut, type AuthState } from './lib/auth';
 import { loadHidden, hiddenSets, hideItem, type HiddenItem } from './lib/moderation';
 import { deleteCloudUpload } from './lib/uploads';
@@ -228,6 +229,10 @@ function AppInner({ auth }: { auth: AuthState }) {
               <div><strong>Reference:</strong> {activeRef.text} <a href={activeRef.url} target="_blank" rel="noreferrer">{/pubmed|ncbi\.nlm/i.test(activeRef.url) ? 'PubMed' : /github\.com/i.test(activeRef.url) ? 'GitHub' : 'Source'} ↗</a></div>
             </div>
           )}
+          {active !== ALL && tab === 'database' && (
+            <RsmlUploader projectSlug={active} />
+          )}
+
           {activeRsml && tab === 'database' && (
             <div className="card pad" style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: '.82rem', borderColor: 'var(--accent2)' }}>
               <Sprout size={16} color="var(--accent2)" style={{ flexShrink: 0, marginTop: 1 }} />
