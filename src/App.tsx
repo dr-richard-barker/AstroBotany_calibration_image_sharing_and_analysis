@@ -230,7 +230,7 @@ function AppInner({ auth }: { auth: AuthState }) {
             </div>
           )}
           {active !== ALL && tab === 'database' && (
-            <RsmlUploader projectSlug={active} />
+            <RsmlUploader projectSlug={active} entries={entries} />
           )}
 
           {activeRsml && tab === 'database' && (

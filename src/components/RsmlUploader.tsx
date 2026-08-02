@@ -1,9 +1,131 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Trash2, ExternalLink, FileCode, Check, Loader2 } from 'lucide-react';
 import { saveRsml, getProjectRsmls, deleteProjectRsmls } from '../lib/idb';
+import { putResult } from '../lib/cose-results';
+import type { Ec5Entry } from '../types';
 
 interface Props {
   projectSlug: string;
+  entries?: Ec5Entry[];
+}
+
+export async function deleteAstroRootResult(ref: string): Promise<void> {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const req = indexedDB.open('cose-analysis', 1);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  const id = `${ref}::astroroot`;
+  await new Promise<void>((resolve, reject) => {
+    const t = db.transaction('results', 'readwrite');
+    t.objectStore('results').delete(id);
+    t.oncomplete = () => { db.close(); resolve(); };
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export function parseRsmlText(text: string, filename: string) {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length > 0) return null;
+
+    const unitEl = doc.getElementsByTagName('unit')[0];
+    const unit = unitEl ? unitEl.textContent?.trim().toLowerCase() || 'pixel' : 'pixel';
+    const resEl = doc.getElementsByTagName('resolution')[0];
+    const res = resEl ? parseFloat(resEl.textContent || '1') || 1 : 1;
+
+    const UNIT_CM: Record<string, number | null> = {
+      cm: 1,
+      mm: 0.1,
+      inch: 2.54,
+      pixel: null,
+      px: null
+    };
+    const toCm = UNIT_CM[unit];
+    const dispUnit = toCm != null ? 'cm' : 'px';
+    const k = toCm != null ? toCm / res : 1;
+
+    const dist = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const roots: { order: number; pts: [number, number][]; len: number }[] = [];
+
+    const rootPoints = (rootEl: Element): [number, number][] => {
+      const geo = [...rootEl.children].find(c => c.tagName.toLowerCase() === 'geometry');
+      if (!geo) return [];
+      const poly = [...geo.children].find(c => c.tagName.toLowerCase() === 'polyline');
+      if (!poly) return [];
+      return [...poly.getElementsByTagName('point')].map(pt => [
+        parseFloat(pt.getAttribute('x') || '0'),
+        parseFloat(pt.getAttribute('y') || '0')
+      ]);
+    };
+
+    const collectRoots = (el: Element, order: number) => {
+      for (const r of [...el.children].filter(c => c.tagName.toLowerCase() === 'root')) {
+        const pts = rootPoints(r);
+        if (pts.length >= 2) {
+          let len = 0;
+          for (let idx = 1; idx < pts.length; idx++) {
+            len += dist(pts[idx - 1], pts[idx]);
+          }
+          roots.push({ order, pts, len });
+          collectRoots(r, order + 1);
+        } else {
+          collectRoots(r, order + 1);
+        }
+      }
+    };
+
+    const plantEls = doc.getElementsByTagName('plant');
+    for (let idx = 0; idx < plantEls.length; idx++) {
+      collectRoots(plantEls[idx], 1);
+    }
+
+    if (roots.length === 0) return null;
+
+    const TRL = roots.reduce((sum, r) => sum + r.len, 0);
+    const primaryRoots = roots.filter(r => r.order === 1);
+    const lateralRoots = roots.filter(r => r.order >= 2);
+    const TLRL = lateralRoots.reduce((sum, r) => sum + r.len, 0);
+
+    const tips = roots.length; 
+    const branches = lateralRoots.length;
+
+    let totalAngle = 0;
+    let angleCount = 0;
+    primaryRoots.forEach(r => {
+      const p = r.pts;
+      if (p.length >= 2) {
+        const dx = p[p.length - 1][0] - p[0][0];
+        const dy = p[p.length - 1][1] - p[0][1];
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-9) {
+          const deg = Math.acos(Math.max(-1, Math.min(1, dy / len))) * 180 / Math.PI;
+          totalAngle += Math.min(deg, 180 - deg);
+          angleCount++;
+        }
+      }
+    });
+    const avgAngle = angleCount > 0 ? totalAngle / angleCount : 0;
+
+    return {
+      name: filename.replace(/\.rsml$/i, ''),
+      engine: 'SmartRoot RSML Linker',
+      generatedAt: new Date().toISOString(),
+      metrics: {
+        'Total Root Length (TRL)': `${(TRL * k).toFixed(2)} ${dispUnit}`,
+        'Primary Root Length': `${(primaryRoots.reduce((sum, r) => sum + r.len, 0) * k).toFixed(2)} ${dispUnit}`,
+        'Lateral Root Length': `${(TLRL * k).toFixed(2)} ${dispUnit}`,
+        'Lateral Root Count': branches,
+        'Root Tip Count (Tips)': tips,
+        'Max Branching Order': Math.max(...roots.map(r => r.order)),
+        'Average Primary Angle': `${avgAngle.toFixed(1)}°`
+      }
+    };
+  } catch (err) {
+    console.error('Error parsing RSML xml content', err);
+    return null;
+  }
 }
 
 export function parseRsmlMeta(filename: string) {
@@ -13,8 +135,6 @@ export function parseRsmlMeta(filename: string) {
   let genotype = 'Col-0';
   let day = '';
 
-  // Standard NASA/CARA pattern: Gr_Light_Plate1_WS_11, Fl_Dark_Plate2_Col_11
-  // parts: ["Gr", "Light", "Plate1", "WS", "11"]
   if (parts.length >= 4) {
     const first = parts[0];
     const second = parts[1];
@@ -41,7 +161,6 @@ export function parseRsmlMeta(filename: string) {
     day = parts[1];
   }
 
-  // Prettify labels
   const condLabel = condition.replace(/^gr_/i, 'Ground · ').replace(/^fl_/i, 'Flight · ');
   const dayLabel = day ? ` (Day ${day})` : '';
 
@@ -54,7 +173,7 @@ export function parseRsmlMeta(filename: string) {
   };
 }
 
-export const RsmlUploader: React.FC<Props> = ({ projectSlug }) => {
+export const RsmlUploader: React.FC<Props> = ({ projectSlug, entries }) => {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rsmls, setRsmls] = useState<{ filename: string; content: string }[]>([]);
@@ -75,6 +194,112 @@ export const RsmlUploader: React.FC<Props> = ({ projectSlug }) => {
   useEffect(() => {
     loadRsmls();
   }, [projectSlug]);
+
+  useEffect(() => {
+    if (!entries || entries.length === 0 || rsmls.length === 0) return;
+
+    const linkTraces = async () => {
+      const imagesByKey: Record<string, Ec5Entry[]> = {};
+      entries.forEach(e => {
+        const nameLower = e.title.toLowerCase();
+        
+        let treat = '';
+        if (nameLower.includes('_fl_')) treat = 'FL';
+        else if (nameLower.includes('_gr_')) treat = 'GR';
+
+        let cond = '';
+        if (nameLower.includes('_dark_')) cond = 'dark';
+        else if (nameLower.includes('_ambient_')) cond = 'ambient';
+
+        let geno = '';
+        if (nameLower.includes('_col-0-phyd_') || nameLower.includes('_phyd_')) geno = 'PhyD';
+        else if (nameLower.includes('_ws_')) geno = 'Ws';
+        else if (nameLower.includes('_col-0_') || nameLower.includes('_col_')) geno = 'Col';
+
+        let day = '';
+        const dayMatch = nameLower.match(/_d(\d+)_/);
+        if (dayMatch) day = `d${parseInt(dayMatch[1], 10)}`;
+
+        if (treat && cond && geno && day) {
+          const key = `${treat}::${cond}::${geno}::${day}`;
+          if (!imagesByKey[key]) imagesByKey[key] = [];
+          imagesByKey[key].push(e);
+        }
+      });
+
+      Object.keys(imagesByKey).forEach(k => {
+        imagesByKey[k].sort((a, b) => a.title.localeCompare(b.title));
+      });
+
+      const rsmlsByKey: Record<string, typeof rsmls> = {};
+      rsmls.forEach(r => {
+        const clean = r.filename.replace(/\.rsml$/i, '');
+        const parts = clean.split(/[_-]/);
+        if (parts.length >= 4) {
+          const first = parts[0].toUpperCase();
+          const second = parts[1].toLowerCase();
+          const treat = first.startsWith('FL') ? 'FL' : first.startsWith('GR') ? 'GR' : '';
+          const cond = second.startsWith('dark') ? 'dark' : second.startsWith('light') || second.startsWith('ambient') ? 'ambient' : '';
+          
+          let geno = '';
+          let dayStr = '';
+
+          if (/^plate\d+/i.test(parts[2])) {
+            geno = parts[3];
+            dayStr = parts[4] || '';
+          } else {
+            geno = parts[2];
+            dayStr = parts[3] || '';
+          }
+
+          const genotype = /phyd/i.test(geno) ? 'PhyD' : /ws/i.test(geno) ? 'Ws' : /col/i.test(geno) ? 'Col' : '';
+          const dayNum = parseInt(dayStr.replace(/\D/g, ''), 10);
+          const day = !isNaN(dayNum) ? (dayNum === 11 ? 'd13' : `d${String(dayNum).padStart(2, '0')}`) : '';
+
+          if (treat && cond && genotype && day) {
+            const key = `${treat}::${cond}::${genotype}::${day}`;
+            if (!rsmlsByKey[key]) rsmlsByKey[key] = [];
+            rsmlsByKey[key].push(r);
+          }
+        }
+      });
+
+      Object.keys(rsmlsByKey).forEach(k => {
+        rsmlsByKey[k].sort((a, b) => a.filename.localeCompare(b.filename));
+      });
+
+      let updated = false;
+      for (const [key, groupRsmls] of Object.entries(rsmlsByKey)) {
+        const groupImages = imagesByKey[key];
+        if (!groupImages || groupImages.length === 0) continue;
+
+        for (let idx = 0; idx < groupRsmls.length; idx++) {
+          const r = groupRsmls[idx];
+          const img = groupImages[Math.min(idx, groupImages.length - 1)];
+          const ref = `${img.project}::${img.uuid}`;
+          
+          const parsed = parseRsmlText(r.content, r.filename);
+          if (parsed) {
+            await putResult({
+              ref,
+              imageUrl: img.photoUrl || '',
+              tool: 'astroroot',
+              toolName: 'AstroRoot',
+              metrics: parsed.metrics,
+              generatedAt: parsed.generatedAt
+            });
+            updated = true;
+          }
+        }
+      }
+
+      if (updated) {
+        window.dispatchEvent(new Event('focus'));
+      }
+    };
+
+    linkTraces().catch(err => console.error('Failed linking local RSML traces', err));
+  }, [rsmls, entries]);
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -98,8 +323,15 @@ export const RsmlUploader: React.FC<Props> = ({ projectSlug }) => {
     if (!window.confirm(`Are you sure you want to delete all ${rsmls.length} local RSML traces for this project?`)) return;
     setBusy(true);
     try {
+      if (entries) {
+        for (const e of entries) {
+          const ref = `${e.project}::${e.uuid}`;
+          await deleteAstroRootResult(ref);
+        }
+      }
       await deleteProjectRsmls(projectSlug);
       await loadRsmls();
+      window.dispatchEvent(new Event('focus'));
     } catch (e) {
       console.error(e);
     } finally {
@@ -110,7 +342,6 @@ export const RsmlUploader: React.FC<Props> = ({ projectSlug }) => {
   const handleLaunchAstroRoot = () => {
     if (rsmls.length === 0) return;
 
-    // Create Blob URLs for individual RSML traces
     const filesList = rsmls.map(r => {
       const blob = new Blob([r.content], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
@@ -125,7 +356,6 @@ export const RsmlUploader: React.FC<Props> = ({ projectSlug }) => {
       };
     });
 
-    // Compile into main rsml_index.json
     const indexJson = {
       name: `Local RSML uploads for ${projectSlug}`,
       description: `Locally uploaded SmartRoot RSML traces generated in-browser.`,
@@ -234,3 +464,4 @@ export const RsmlUploader: React.FC<Props> = ({ projectSlug }) => {
     </div>
   );
 };
+
