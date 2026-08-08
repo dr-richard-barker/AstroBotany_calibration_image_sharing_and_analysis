@@ -155,7 +155,7 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
             {dirty && <button className="btn btn-teal btn-sm" onClick={save}><Save /> Save analysis</button>}
             {marker && !dirty && <button className="btn btn-sm btn-ghost" onClick={clear} style={{ color: 'var(--danger)' }}><Eraser /> Clear</button>}
             <span className="grow" />
-            {TOOLS.map(t => (
+            {TOOLS.filter(t => t.launch === 'image').map(t => (
               <button key={t.id} className="btn btn-sm btn-ghost" onClick={() => onOpenTool(t.id, entry.photoUrl!, ref)} title={`Analyse this image in ${t.name} (in-app)`}>
                 <t.icon size={14} /> {t.name}
               </button>

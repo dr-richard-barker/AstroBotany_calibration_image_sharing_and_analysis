@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText, ShieldCheck, LogOut, Library } from 'lucide-react';
-import { TOOLS, toolById } from './tools';
+import { TOOLS, toolById, toolFrameSrc } from './tools';
+import { rsmlDashboardUrl } from './lib/rsml';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
   fetchEntriesPage, fetchAllPage, getActive, setActive as persistActive, getProjects,
@@ -163,7 +164,7 @@ function AppInner({ auth }: { auth: AuthState }) {
               onClick={() => openTool(t.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openTool(t.id); }}>
               <t.icon size={15} />
               <span>{t.name}<span className="sub">{t.sub}</span></span>
-              <a className="ext" href={`${t.url}?embed=1`} target="_blank" rel="noreferrer" title="Open full-screen" onClick={e => e.stopPropagation()}><ExternalLink size={12} /></a>
+              <a className="ext" href={toolFrameSrc(t)} target="_blank" rel="noreferrer" title="Open full-screen" onClick={e => e.stopPropagation()}><ExternalLink size={12} /></a>
             </div>
           ))}
         </div>
@@ -230,7 +231,7 @@ function AppInner({ auth }: { auth: AuthState }) {
             <div className="card pad" style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: '.82rem', borderColor: 'var(--accent2)' }}>
               <Sprout size={16} color="var(--accent2)" style={{ flexShrink: 0, marginTop: 1 }} />
               <div>This project ships <strong>SmartRoot RSML root traces</strong>, pre-grouped by condition &amp; genotype.{' '}
-                <a href={`https://dr-richard-barker.github.io/astroroot/dashboard.html?rsml=${encodeURIComponent(activeRsml)}`} target="_blank" rel="noreferrer">
+                <a href={rsmlDashboardUrl(activeRsml)} target="_blank" rel="noreferrer">
                   Open them in the AstroRoot dashboard ↗
                 </a>{' '}to explore archiDART root-architecture traits.
               </div>

@@ -2,10 +2,10 @@ import React from 'react';
 import { Database as DbIcon, Github, Cloud, HardDrive, Sprout, BookText, Rocket, GitBranch } from 'lucide-react';
 import { type ProjectRef, isGithub, isLocal } from '../api/epicollect';
 import { isCloud } from '../lib/uploads';
+import { ALL_RSML_INDEX_URL, rsmlDashboardUrl } from '../lib/rsml';
 
 // One-click: load every RSML dataset into the AstroRoot dashboard viewer.
-const ALL_RSML = 'https://raw.githubusercontent.com/dr-richard-barker/image-analysis-software-and-R-codes/master/all_rsml_index.json';
-const ALL_RSML_LINK = `https://dr-richard-barker.github.io/astroroot/dashboard.html?rsml=${encodeURIComponent(ALL_RSML)}`;
+const ALL_RSML_LINK = rsmlDashboardUrl(ALL_RSML_INDEX_URL);
 
 function badge(p: ProjectRef) {
   if (isCloud(p.slug)) return { icon: Cloud, label: 'Community', color: 'var(--accent2)' };

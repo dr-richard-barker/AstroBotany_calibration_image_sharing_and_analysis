@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { LogIn, ShieldAlert, Loader2, Crosshair, Ruler, Palette, UploadCloud, Sprout, Rocket, Images, LineChart } from 'lucide-react';
+import { LogIn, ShieldAlert, Loader2, Crosshair, Ruler, Palette, UploadCloud, Sprout, Rocket, Images, LineChart, GitBranch } from 'lucide-react';
 import { watchAuth, signInWithGoogle, signOut, type AuthState } from '../lib/auth';
+import { ALL_RSML_INDEX_URL, rsmlDashboardUrl } from '../lib/rsml';
 
 const LOGO = `${import.meta.env.BASE_URL}cose/cose-logo.png`;
 
@@ -67,12 +68,14 @@ export const AuthGate: React.FC<{ children: (auth: AuthState) => React.ReactNode
           { icon: <Images size={18} />, t: 'Browse the collection', d: 'Explore spaceflight, ground-control and classroom datasets side by side, filtered by project, genotype or species.' },
           { icon: <Crosshair size={18} />, t: 'Detect the marker', d: 'The calibration card is found in your browser to recover pixels-per-mm scale and a 15-chip colour correction — no upload to a server.' },
           { icon: <LineChart size={18} />, t: 'Analyse roots & pigments', d: 'Open any image in the AstroRoot root-tracer or Leaf Pigment & Size tools; results flow back into the record.' },
+          { icon: <GitBranch size={18} />, t: 'Explore root traces (RSML)', d: 'Browse SmartRoot RSML root-architecture traces — length, tips, branching, angle — across every project in the AstroRoot dashboard.', href: rsmlDashboardUrl(ALL_RSML_INDEX_URL) },
           { icon: <UploadCloud size={18} />, t: 'Share your own', d: 'Upload calibrated photos to the community collection for everyone to see, measure and build on.' },
         ].map((f, i) => (
           <div className="land-card" key={i}>
             <div className="land-ico">{f.icon}</div>
             <h3>{f.t}</h3>
             <p>{f.d}</p>
+            {f.href && <a href={f.href} target="_blank" rel="noreferrer" className="land-card-link">Open the dashboard ↗</a>}
           </div>
         ))}
       </section>
