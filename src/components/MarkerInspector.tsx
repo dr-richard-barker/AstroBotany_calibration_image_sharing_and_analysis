@@ -8,6 +8,7 @@ import { getResults, type AnalysisResult } from '../lib/cose-results';
 import { TOOLS } from '../tools';
 import { QuadAnnotator } from './QuadAnnotator';
 import { SmartImg } from './SmartImg';
+import { PlantCVAnnotator } from './PlantCVAnnotator';
 
 interface Props {
   entry: Ec5Entry;
@@ -45,6 +46,7 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
   const [err, setErr] = useState<string | null>(null);
   const [videoErr, setVideoErr] = useState(false);
   const dims = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
+  const [showPlantCV, setShowPlantCV] = useState(false);
   const isAvi = !!entry.videoUrl && /\.avi(\?|$)/i.test(entry.videoUrl);
   useEffect(() => { setVideoErr(false); }, [entry.uuid]);
 
@@ -155,6 +157,9 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
             {dirty && <button className="btn btn-teal btn-sm" onClick={save}><Save /> Save analysis</button>}
             {marker && !dirty && <button className="btn btn-sm btn-ghost" onClick={clear} style={{ color: 'var(--danger)' }}><Eraser /> Clear</button>}
             <span className="grow" />
+            <button className="btn btn-sm btn-ghost" onClick={() => setShowPlantCV(true)} title="Run PlantCV / OpenCV leaf segmentation in the browser">
+              <Sparkles size={14} /> PlantCV Segmenter
+            </button>
             {TOOLS.filter(t => t.launch === 'image').map(t => (
               <button key={t.id} className="btn btn-sm btn-ghost" onClick={() => onOpenTool(t.id, entry.photoUrl!, ref)} title={`Analyse this image in ${t.name} (in-app)`}>
                 <t.icon size={14} /> {t.name}
@@ -244,6 +249,10 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
           <dt>Entry ID</dt><dd style={{ fontSize: '.72rem' }}>{entry.uuid}</dd>
         </dl>
       </div>
+
+      {showPlantCV && entry.photoUrl && (
+        <PlantCVAnnotator imageUrl={entry.photoUrl} imageRef={ref} onClose={() => setShowPlantCV(false)} />
+      )}
     </div>
   );
 };

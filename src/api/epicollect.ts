@@ -23,6 +23,7 @@ export const ALL = '__all__';
 export interface ProjectRef {
   slug: string; name: string; type?: 'ec5' | 'github' | 'local' | 'cloud';
   gh?: GhTarget; iss?: boolean; metaUrl?: string;
+  formRef?: string;
   reference?: { text: string; url: string }; rsmlIndex?: string;
   // Curated provenance for the Datasets tab.
   provenance?: { organism?: string; conditions?: string; description?: string; source?: string };
@@ -122,6 +123,17 @@ const BUILTIN: ProjectRef[] = [
   { slug: 'airi-microgreen-growth-biomass-analysis', name: 'AIRI Microgreen Growth & Biomass' },
   { slug: 'growing-beyond-earth-2021-2022', name: 'Growing Beyond Earth 2021–2022' },
   { slug: 'nasa-roots', name: 'NASA Roots' },
+  { 
+    slug: 'greencompanions', 
+    name: 'GreenCompanions — Aquatic Microgreens',
+    formRef: 'ea9a607f7c014276bc7bce0a2e794167_5ff90e8cdb1ba',
+    provenance: {
+      organism: 'Wolffia australiana / Lemna / Landoltia / Azolla',
+      conditions: 'Co-cultures, water systems, growth chambers',
+      description: 'Aquatic microgreens and duckweed companions.',
+      source: 'Epicollect5 GreenCompanions'
+    }
+  },
   { slug: 'the-spacechilechallenge-cose', name: 'The SpaceChileChallenge' },
   // ABRS Advanced Biological Research System root time-lapse (NASA spaceflight).
   {
@@ -163,10 +175,40 @@ export function getProjects(): ProjectRef[] {
   }
   return out;
 }
-export function addProject(slug: string, name?: string): ProjectRef[] {
-  const s = slug.trim().toLowerCase().replace(/\s+/g, '-');
+export function addProject(input: string, name?: string): ProjectRef[] {
+  let s = input.trim();
+  let formRef: string | undefined;
+
+  // Extract from full Epicollect export URL
+  // e.g. https://five.epicollect.net/api/export/entries/greencompanions?form_ref=ea9a607f7c014276bc7bce0a2e794167_5ff90e8cdb1ba
+  const urlMatch = s.match(/five\.epicollect\.net\/api\/export\/entries\/([^?]+)(?:\?(.+))?/i);
+  if (urlMatch) {
+    s = urlMatch[1];
+    const query = urlMatch[2];
+    if (query) {
+      const m = query.match(/form_ref=([^&]+)/i);
+      if (m) formRef = m[1];
+    }
+  } else {
+    // If it's a slug with query parameters directly, e.g. greencompanions?form_ref=...
+    const qMatch = s.match(/^([^?]+)\?(.+)/);
+    if (qMatch) {
+      s = qMatch[1];
+      const m = qMatch[2].match(/form_ref=([^&]+)/i);
+      if (m) formRef = m[1];
+    }
+  }
+
+  s = s.toLowerCase().replace(/\s+/g, '-');
   if (!s) return getProjects();
-  if (!getProjects().some(p => p.slug === s)) writeCustom([...readCustom(), { slug: s, name: name?.trim() || prettify(s) }]);
+  
+  if (!getProjects().some(p => p.slug === s)) {
+    writeCustom([...readCustom(), { 
+      slug: s, 
+      name: name?.trim() || prettify(s),
+      formRef
+    }]);
+  }
   return getProjects();
 }
 export function addGithubSource(gh: GhTarget, name: string, iss?: boolean, metaUrl?: string): ProjectRef {
@@ -319,7 +361,11 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
     return { entries: all.slice(start, start + perPage), total: all.length, hasNext: start + perPage < all.length };
   }
 
-  const url = `${EC5_BASE}/api/export/entries/${encodeURIComponent(slug)}?per_page=${perPage}&page=${page}&format=json`;
+  const src = getProjects().find(p => p.slug === slug);
+  let url = `${EC5_BASE}/api/export/entries/${encodeURIComponent(slug)}?per_page=${perPage}&page=${page}&format=json`;
+  if (src?.formRef) {
+    url += `&form_ref=${encodeURIComponent(src.formRef)}`;
+  }
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (res.status === 429) throw new Error('rate limit reached (5 req/min) — wait a moment');
   if (!res.ok) {
@@ -438,7 +484,15 @@ function ghEntry(f: GhFile, slug: string, meta?: Record<string, string>): Ec5Ent
     }
     if (lat != null && lng != null) gps = { lat, lng };
   }
-  species = pickSpecies(fields.map(f => ({ key: (f as any).key || f.name, name: f.name, value: f.value })));
+  
+  species = pickSpecies(fields.map(f => ({ key: (f as any).key || f.name, name: f.name, value: f.value }))) || fromName.species || null;
+
+  if (fromName.genotype && !fields.some(f => f.name.toLowerCase() === 'genotype')) {
+    fields.push({ name: 'Genotype', value: fromName.genotype });
+  }
+  if (fromName.treatment && !fields.some(f => f.name.toLowerCase() === 'treatment')) {
+    fields.push({ name: 'Treatment', value: fromName.treatment });
+  }
 
   fields.push({ name: 'File size', value: f.size > 1_000_000 ? `${(f.size / 1048576).toFixed(1)} MB` : `${Math.round(f.size / 1024)} KB` });
   return {
