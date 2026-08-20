@@ -9,6 +9,7 @@ import { TOOLS } from '../tools';
 import { QuadAnnotator } from './QuadAnnotator';
 import { SmartImg } from './SmartImg';
 import { PlantCVAnnotator } from './PlantCVAnnotator';
+import { VideoPlayer } from './VideoPlayer';
 
 interface Props {
   entry: Ec5Entry;
@@ -98,20 +99,27 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
       {entry.videoUrl && (
         <div className="card pad">
           <div className="card-title"><Film /> Time-lapse video</div>
-          <video controls preload="metadata" playsInline crossOrigin="anonymous"
-            onError={() => setVideoErr(true)}
-            style={{ display: 'block', width: '100%', borderRadius: 8, background: '#000', maxHeight: 460 }}>
-            <source src={entry.videoUrl} type={isAvi ? 'video/x-msvideo' : undefined} />
-          </video>
-          {(videoErr || isAvi) && (
-            <p className="muted" style={{ fontSize: '.8rem', marginTop: 8 }}>
-              {isAvi ? 'This is an AVI file. Most browsers can’t decode AVI inline' : 'Your browser couldn’t play this video inline'} — use <strong>Download / open</strong> below to view it in a media player (e.g. VLC or QuickTime).
-            </p>
+          {isAvi ? (
+            <>
+              <p className="muted" style={{ fontSize: ".8rem", marginBottom: 10 }}>
+                This is an AVI file. Most browsers cannot decode AVI inline - use a media player (e.g. VLC or QuickTime).
+              </p>
+              <div className="row wrap" style={{ gap: 8 }}>
+                <a className="btn btn-primary btn-sm" href={entry.videoUrl} download target="_blank" rel="noreferrer"><Download size={14} /> Download</a>
+                <a className="btn btn-sm btn-ghost" href={entry.videoUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open</a>
+              </div>
+            </>
+          ) : (
+            <>
+              <VideoPlayer videoUrl={entry.videoUrl} fps={30} title="" onFrameChange={(frameIdx, time) => {
+                // Could sync frame inspection or metadata here if needed
+              }} />
+              <div className="row wrap" style={{ marginTop: 10, gap: 8 }}>
+                <a className="btn btn-sm btn-ghost" href={entry.videoUrl} download><Download size={14} /> Download</a>
+                <a className="btn btn-sm btn-ghost" href={entry.videoUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open</a>
+              </div>
+            </>
           )}
-          <div className="row wrap" style={{ marginTop: 10, gap: 8 }}>
-            <a className="btn btn-primary btn-sm" href={entry.videoUrl} download target="_blank" rel="noreferrer"><Download size={14} /> Download / open</a>
-            <a className="btn btn-sm btn-ghost" href={entry.videoUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open in new tab</a>
-          </div>
         </div>
       )}
       {!entry.videoUrl && (<>
