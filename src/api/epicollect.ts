@@ -21,8 +21,9 @@ export const ALL = '__all__';
 // A source is either an Epicollect5 project (type omitted / 'ec5') or a GitHub
 // image folder (type 'github', slug prefixed "gh:", details in `gh`).
 export interface ProjectRef {
-  slug: string; name: string; type?: 'ec5' | 'github' | 'local' | 'cloud';
+  slug: string; name: string; type?: 'ec5' | 'github' | 'local' | 'cloud' | 'youtube';
   gh?: GhTarget; iss?: boolean; metaUrl?: string;
+  yt?: { videoId: string; embedUrl: string };
   formRef?: string;
   reference?: { text: string; url: string }; rsmlIndex?: string;
   // Curated provenance for the Datasets tab.
@@ -30,6 +31,7 @@ export interface ProjectRef {
 }
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
+export const isYoutube = (slug: string) => slug.startsWith('yt:');
 export const isLocal = (slug: string) => slug.startsWith('local:');
 
 // Images from an ISS payload (e.g. ExoLab): they carry no GPS, so the dashboard

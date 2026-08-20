@@ -46,6 +46,10 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudProg, setCloudProg] = useState<{ done: number; total: number } | null>(null);
   const [cloudMsg, setCloudMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // YouTube import
+  const [ytUrl, setYtUrl] = useState('');
+  const [ytBusy, setYtBusy] = useState(false);
+  const [ytMsg, setYtMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const doCloudUpload = async () => {
     if (!cloudFiles.length) return;
@@ -128,6 +132,41 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
     onProjectsChange();
   };
   const remove = (s: string) => { removeProject(s); onProjectsChange(); };
+
+  const addYoutube = () => {
+    const videoIdMatch = ytUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
+    if (!videoIdMatch?.[1]) { setYtMsg({ ok: false, text: 'Invalid YouTube URL. Use e.g. https://www.youtube.com/watch?v=VIDEO_ID' }); return; }
+
+    setYtBusy(true); setYtMsg(null);
+    try {
+      const videoId = videoIdMatch[1];
+      const title = ytUrl.split('?')[0].split('/').pop() || `YouTube ${videoId.slice(0, 8)}`;
+      const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}`;
+
+      const slug = `yt:${videoId}`;
+      const existing = projects.find(p => p.slug === slug);
+      if (existing) { setYtMsg({ ok: false, text: 'This YouTube video is already imported.' }); setYtBusy(false); return; }
+
+      // Create project reference for YouTube video
+      const ref: ProjectRef = {
+        slug,
+        name: `YouTube · ${title}`,
+        type: 'github',  // Reuse github type for simplicity
+        gh: { owner: 'youtube', repo: videoId, ref: 'main', path: '' },
+        yt: { videoId, embedUrl }  // Store YouTube-specific data
+      };
+
+      // Add to projects
+      const custom = JSON.parse(localStorage.getItem('ec5-projects') || '[]');
+      localStorage.setItem('ec5-projects', JSON.stringify([...custom, ref]));
+
+      onProjectsChange();
+      setYtUrl('');
+      setYtMsg({ ok: true, text: `Added YouTube video. Users can now pause and capture frames!` });
+    } catch (e) {
+      setYtMsg({ ok: false, text: e instanceof Error ? e.message : 'Failed to add YouTube video' });
+    } finally { setYtBusy(false); }
+  };
 
   const addGithub = async () => {
     const t = parseGithub(ghUrl);
@@ -300,6 +339,25 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
           {ghMsg && <div style={{ marginTop: 8, fontSize: '.82rem', color: ghMsg.ok ? 'var(--ok)' : 'var(--danger)' }}>{ghMsg.text}</div>}
           <p className="muted" style={{ fontSize: '.74rem', marginTop: 8 }}>Uses the public GitHub API (60 requests/hour, anonymous). Large folders load thumbnails lazily as you scroll.</p>
           <button className="btn btn-sm btn-ghost" onClick={downloadTemplate}><Download size={14} /> Download metadata.csv template</button>
+        </div>
+
+        {/* YouTube import */}
+        <div className="card pad">
+          <div className="card-title"><Play /> Import from YouTube</div>
+          <p className="muted" style={{ fontSize: '.82rem', marginTop: -6, marginBottom: 10 }}>
+            Paste a YouTube video link. Users can play the video, pause to examine frames, and capture screenshots for analysis. Frames extracted from videos can be analyzed with marker detection.
+          </p>
+          <div className="row wrap" style={{ gap: 8, alignItems: 'flex-end' }}>
+            <div className="field" style={{ flex: '1 1 320px', marginBottom: 0 }}><label>YouTube video URL</label>
+              <input className="input" placeholder="https://www.youtube.com/watch?v=VIDEO_ID"
+                value={ytUrl} onChange={e => setYtUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && addYoutube()} />
+            </div>
+            <button className="btn btn-primary" disabled={ytBusy || !ytUrl.trim()} onClick={addYoutube}>
+              {ytBusy ? <Loader2 className="spin" size={16} /> : <Plus size={16} />} Add video
+            </button>
+          </div>
+          {ytMsg && <div style={{ marginTop: 8, fontSize: '.82rem', color: ytMsg.ok ? 'var(--ok)' : 'var(--danger)' }}>{ytMsg.text}</div>}
+          <p className="muted" style={{ fontSize: '.74rem', marginTop: 8 }}>Supports YouTube and youtu.be links. Videos are embedded with privacy-enhanced mode. Frame capture saves screenshots for further analysis.</p>
         </div>
 
         {/* sources table */}
