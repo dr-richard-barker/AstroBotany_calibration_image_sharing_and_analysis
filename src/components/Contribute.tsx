@@ -134,13 +134,26 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
     if (!t) { setGhMsg({ ok: false, text: 'Not a GitHub folder URL. Use e.g. https://github.com/owner/repo/tree/main/path' }); return; }
     setGhBusy(true); setGhMsg(null);
     try {
-      const files = await fetchGithubImages(t);            // validate + warm the cache
-      if (!files.length) { setGhMsg({ ok: false, text: 'No images found in that folder.' }); return; }
-      const ref = addGithubSource(t, defaultName(t));
+      // Fetch folder to get both images and metadata (CSV/JSON sidecar)
+      const { images, metaFile } = await (async () => {
+        const folder = await (await import('../api/github')).fetchGithubFolder(t);
+        return folder;
+      })();
+      if (!images.length) { setGhMsg({ ok: false, text: 'No images found in that folder.' }); return; }
+
+      // Extract metadata URL if a sidecar was found
+      let metaUrl: string | undefined;
+      if (metaFile) {
+        // Construct raw URL for the metadata file
+        const path = `${t.path}/${metaFile}`.split('/').map(p => encodeURIComponent(p)).join('/');
+        metaUrl = `https://raw.githubusercontent.com/${t.owner}/${t.repo}/${t.ref}/${path}`;
+      }
+
+      const ref = addGithubSource(t, defaultName(t), undefined, metaUrl);
       onProjectsChange();
       onChangeActive(ref.slug);
       setGhUrl('');
-      setGhMsg({ ok: true, text: `Added ${files.length} images from ${ref.name}.` });
+      setGhMsg({ ok: true, text: `Added ${images.length} images${metaFile ? ' + metadata' : ''} from ${ref.name}.` });
     } catch (e) {
       setGhMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally { setGhBusy(false); }
