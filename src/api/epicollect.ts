@@ -495,14 +495,20 @@ function ghEntry(f: GhFile, slug: string, meta?: Record<string, string>): Ec5Ent
   }
 
   fields.push({ name: 'File size', value: f.size > 1_000_000 ? `${(f.size / 1048576).toFixed(1)} MB` : `${Math.round(f.size / 1024)} KB` });
+
+  // Check for videoUrl in metadata (for timelapses linked to external videos)
+  const metaVideoUrl = meta?.videoUrl;
+  const hasVideoFile = f.video;
+  const videoUrl = metaVideoUrl || (hasVideoFile ? f.downloadUrl : null);
+
   return {
     uuid: f.sha || f.path, project: slug, title,
     createdAt: capturedAt || '', uploadedAt: capturedAt || '',
     // Video entries carry a videoUrl and no photoUrl (there's no still to
     // marker-analyse); image entries carry photo + thumb.
-    photoUrl: f.video ? null : f.downloadUrl,
-    thumbUrl: f.video ? null : f.downloadUrl,
-    videoUrl: f.video ? f.downloadUrl : null,
+    photoUrl: hasVideoFile || metaVideoUrl ? null : f.downloadUrl,
+    thumbUrl: f.downloadUrl,
+    videoUrl: videoUrl,
     fields, species, gps, marker: null,
   };
 }
