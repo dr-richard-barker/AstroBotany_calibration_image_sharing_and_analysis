@@ -10,13 +10,13 @@ interface Props {
 }
 
 /**
- * H.264 MP4 video player with frame-level control.
+ * Video player supporting both MP4 files and YouTube embeds.
  *
- * The video is expected to be encoded with all-intra key frames (one per frame)
- * for accurate seeking without decoding intervening frames. This enables efficient
- * frame-by-frame inspection without video codec overhead on every click.
+ * For MP4: H.264 with all-intra key frames for frame-level seeking.
+ * For YouTube: Renders privacy-enhanced embed iframe.
  */
 export const VideoPlayer: React.FC<Props> = ({ videoUrl, title, fps = 30, onFrameChange, className }) => {
+  const isYouTubeEmbed = videoUrl.includes('youtube-nocookie.com');
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -71,6 +71,24 @@ export const VideoPlayer: React.FC<Props> = ({ videoUrl, title, fps = 30, onFram
     const s = Math.floor(sec % 60);
     return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
   };
+
+  if (isYouTubeEmbed) {
+    return (
+      <div className={`video-player ${className || ''}`} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {title && <h3>{title}</h3>}
+        <iframe
+          width="100%"
+          height="400"
+          src={videoUrl}
+          title={title || 'YouTube video'}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ borderRadius: 6 }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`video-player ${className || ''}`} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
