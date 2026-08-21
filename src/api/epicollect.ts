@@ -355,6 +355,29 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
     return clone(value);
   }
 
+  // YouTube video source: single entry with embed URL as videoUrl
+  if (isYoutube(slug)) {
+    const src = getProjects().find(p => p.slug === slug);
+    if (!src?.yt) throw new Error('YouTube video not found');
+    const entry: Ec5Entry = {
+      uuid: src.yt.videoId,
+      project: slug,
+      title: src.name.replace(/^YouTube · /, ''),
+      createdAt: '',
+      uploadedAt: new Date().toISOString(),
+      photoUrl: null,
+      thumbUrl: null,
+      videoUrl: src.yt.embedUrl,
+      fields: [],
+      species: null,
+      gps: null,
+      marker: null,
+    };
+    const value: OnePage = { entries: page === 1 ? [entry] : [], total: 1, hasNext: false };
+    pageCache.set(key, { time: Date.now(), value });
+    return clone(value);
+  }
+
   // Local uploaded source: read from IndexedDB (fresh object URLs each load, so
   // don't cache — a cached blob: URL can be revoked/stale after a reload).
   if (isLocal(slug)) {
