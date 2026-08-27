@@ -36,7 +36,7 @@ const NAV: { id: Tab; label: string; sub: string; icon: React.ComponentType<any>
   { id: 'about', label: 'About', sub: 'Marker & pipeline', icon: Info },
 ];
 
-const LOGO = `${import.meta.env.BASE_URL}cose/cose-logo.png`;
+const LOGO = `${import.meta.env.BASE_URL}cose/regolith-logo.png`;
 const PER_PAGE = 50;
 
 function initialTheme(): 'light' | 'dark' {

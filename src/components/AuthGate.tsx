@@ -3,7 +3,7 @@ import { LogIn, ShieldAlert, Loader2, Crosshair, Ruler, Palette, UploadCloud, Sp
 import { watchAuth, signInWithGoogle, signOut, type AuthState } from '../lib/auth';
 import { ALL_RSML_INDEX_URL, rsmlDashboardUrl } from '../lib/rsml';
 
-const LOGO = `${import.meta.env.BASE_URL}cose/cose-logo.png`;
+const LOGO = `${import.meta.env.BASE_URL}cose/regolith-logo.png`;
 
 function applyTheme() {
   const saved = localStorage.getItem('cose-theme');
