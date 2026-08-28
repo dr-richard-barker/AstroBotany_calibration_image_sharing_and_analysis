@@ -386,26 +386,24 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
     if (!src?.cv) throw new Error('CyVerse series not found');
 
     try {
-      // Fetch metadata.csv to create entries for each frame
-      const metaUrl = `https://raw.githubusercontent.com/dr-richard-barker/timelapse-image-series/main/${src.cv.seriesName}/metadata.csv`;
-      const res = await fetch(metaUrl);
-      const csv = await res.text();
+      // Fetch manifest.json to get frame count and series metadata
+      const manifestUrl = `https://raw.githubusercontent.com/dr-richard-barker/timelapse-image-series/main/${src.cv.seriesName}/manifest.json`;
+      const res = await fetch(manifestUrl);
+      if (!res.ok) throw new Error(`Failed to fetch manifest: ${res.status}`);
+      const manifest = await res.json();
 
-      // Parse CSV: skip header, create entry per frame
-      const lines = csv.trim().split('\n');
+      // Generate entries for each frame (use frame count from manifest)
+      const frameCount = manifest.frame_count || src.cv.framesCount || 0;
       const entries: Ec5Entry[] = [];
 
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(',');
-        if (parts.length < 2) continue;
-
-        const filename = parts[0]?.trim();
-        if (!filename) continue;
+      for (let i = 1; i <= frameCount; i++) {
+        const frameNum = i.toString().padStart(6, '0');
+        const filename = `frame_${frameNum}.jpg`;
 
         entries.push({
           uuid: `${src.cv.seriesName}::${i}`,
           project: slug,
-          title: filename,
+          title: `Frame ${i}`,
           createdAt: '',
           uploadedAt: new Date().toISOString(),
           photoUrl: `https://raw.githubusercontent.com/dr-richard-barker/timelapse-image-series/main/${src.cv.seriesName}/frames/${filename}`,

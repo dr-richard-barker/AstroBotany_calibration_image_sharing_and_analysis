@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download, FolderSearch, Table, Sparkles, Cloud, Users } from 'lucide-react';
+import { Smartphone, ExternalLink, FolderCog, Plus, Trash2, Eye, Camera, MapPin, UploadCloud, Apple, Play, ImagePlus, Github, Loader2, FileArchive, HardDrive, Download, FolderSearch, Table, Sparkles, Cloud, Users, Film } from 'lucide-react';
 import { addProject, removeProject, addGithubSource, addLocalSource, isBuiltin, isGithub, isLocal, projectUrl, type ProjectRef } from '../api/epicollect';
 import { parseGithub, defaultName, fetchGithubImages, parseGithubRepo, scanRepo, type RepoScan } from '../api/github';
 import { processUpload } from '../lib/localsource';
