@@ -24,6 +24,7 @@ export interface ProjectRef {
   slug: string; name: string; type?: 'ec5' | 'github' | 'local' | 'cloud' | 'youtube';
   gh?: GhTarget; iss?: boolean; metaUrl?: string;
   yt?: { videoId: string; embedUrl: string };
+  cv?: { catalogUrl: string; seriesName: string; videoUrl: string; framesCount: number };
   formRef?: string;
   reference?: { text: string; url: string }; rsmlIndex?: string;
   // Curated provenance for the Datasets tab.
@@ -32,6 +33,7 @@ export interface ProjectRef {
 
 export const isGithub = (slug: string) => slug.startsWith('gh:');
 export const isYoutube = (slug: string) => slug.startsWith('yt:');
+export const isCyVerse = (slug: string) => slug.startsWith('cv:');
 export const isLocal = (slug: string) => slug.startsWith('local:');
 
 // Images from an ISS payload (e.g. ExoLab): they carry no GPS, so the dashboard
@@ -376,6 +378,57 @@ async function fetchOne(slug: string, page: number, perPage: number): Promise<On
     const value: OnePage = { entries: page === 1 ? [entry] : [], total: 1, hasNext: false };
     pageCache.set(key, { time: Date.now(), value });
     return clone(value);
+  }
+
+  // CyVerse timelapse series: fetch from GitHub-hosted catalog
+  if (isCyVerse(slug)) {
+    const src = getProjects().find(p => p.slug === slug);
+    if (!src?.cv) throw new Error('CyVerse series not found');
+
+    try {
+      // Fetch metadata.csv to create entries for each frame
+      const metaUrl = `https://raw.githubusercontent.com/dr-richard-barker/timelapse-image-series/main/${src.cv.seriesName}/metadata.csv`;
+      const res = await fetch(metaUrl);
+      const csv = await res.text();
+
+      // Parse CSV: skip header, create entry per frame
+      const lines = csv.trim().split('\n');
+      const entries: Ec5Entry[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',');
+        if (parts.length < 2) continue;
+
+        const filename = parts[0]?.trim();
+        if (!filename) continue;
+
+        entries.push({
+          uuid: `${src.cv.seriesName}::${i}`,
+          project: slug,
+          title: filename,
+          createdAt: '',
+          uploadedAt: new Date().toISOString(),
+          photoUrl: `https://raw.githubusercontent.com/dr-richard-barker/timelapse-image-series/main/${src.cv.seriesName}/frames/${filename}`,
+          thumbUrl: `https://raw.githubusercontent.com/dr-richard-barker/timelapse-image-series/main/${src.cv.seriesName}/frames/${filename}`,
+          videoUrl: src.cv.videoUrl,
+          fields: [],
+          species: null,
+          gps: null,
+          marker: null,
+        });
+      }
+
+      const start = (page - 1) * perPage;
+      const value: OnePage = {
+        entries: entries.slice(start, start + perPage),
+        total: entries.length,
+        hasNext: start + perPage < entries.length
+      };
+      pageCache.set(key, { time: Date.now(), value });
+      return clone(value);
+    } catch (e) {
+      throw new Error(`Failed to load CyVerse series: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   // Local uploaded source: read from IndexedDB (fresh object URLs each load, so

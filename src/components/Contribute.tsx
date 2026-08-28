@@ -50,6 +50,10 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
   const [ytUrl, setYtUrl] = useState('');
   const [ytBusy, setYtBusy] = useState(false);
   const [ytMsg, setYtMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // CyVerse timelapse series import
+  const [cvUrl, setCvUrl] = useState('');
+  const [cvBusy, setCvBusy] = useState(false);
+  const [cvMsg, setCvMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const doCloudUpload = async () => {
     if (!cloudFiles.length) return;
@@ -166,6 +170,56 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
     } catch (e) {
       setYtMsg({ ok: false, text: e instanceof Error ? e.message : 'Failed to add YouTube video' });
     } finally { setYtBusy(false); }
+  };
+
+  const addCyVerseSeries = () => {
+    if (!cvUrl.trim()) { setCvMsg({ ok: false, text: 'Please enter a catalog URL' }); return; }
+
+    setCvBusy(true); setCvMsg(null);
+    try {
+      fetch(cvUrl)
+        .then(r => r.json())
+        .then(catalog => {
+          if (!catalog.series || !Array.isArray(catalog.series)) {
+            throw new Error('Invalid catalog format: missing "series" array');
+          }
+
+          const custom = JSON.parse(localStorage.getItem('ec5-projects') || '[]');
+          let added = 0;
+
+          for (const series of catalog.series) {
+            const slug = `cv:${series.name}`;
+            if (!custom.find((p: ProjectRef) => p.slug === slug)) {
+              const ref: ProjectRef = {
+                slug,
+                name: `CyVerse · ${series.name}`,
+                type: 'github',
+                gh: { owner: 'dr-richard-barker', repo: 'timelapse-image-series', ref: 'main', path: series.name },
+                cv: { catalogUrl: cvUrl, seriesName: series.name, videoUrl: series.video_url, framesCount: series.frames }
+              };
+              custom.push(ref);
+              added++;
+            }
+          }
+
+          if (added === 0) {
+            setCvMsg({ ok: false, text: 'All series from this catalog are already imported.' });
+          } else {
+            localStorage.setItem('ec5-projects', JSON.stringify(custom));
+            onProjectsChange();
+            setCvUrl('');
+            setCvMsg({ ok: true, text: `Added ${added} timelapse series. Each frame can be analyzed with marker detection.` });
+          }
+          setCvBusy(false);
+        })
+        .catch((e: Error) => {
+          setCvMsg({ ok: false, text: e.message || 'Failed to load catalog' });
+          setCvBusy(false);
+        });
+    } catch (e) {
+      setCvMsg({ ok: false, text: e instanceof Error ? e.message : 'Failed to add CyVerse series' });
+      setCvBusy(false);
+    }
   };
 
   const addGithub = async () => {
@@ -358,6 +412,25 @@ export const Contribute: React.FC<Props> = ({ projects, active, onChangeActive, 
           </div>
           {ytMsg && <div style={{ marginTop: 8, fontSize: '.82rem', color: ytMsg.ok ? 'var(--ok)' : 'var(--danger)' }}>{ytMsg.text}</div>}
           <p className="muted" style={{ fontSize: '.74rem', marginTop: 8 }}>Supports YouTube and youtu.be links. Videos are embedded with privacy-enhanced mode. Frame capture saves screenshots for further analysis.</p>
+        </div>
+
+        {/* CyVerse timelapse import */}
+        <div className="card pad">
+          <div className="card-title"><Film /> Import CyVerse Timelapse Series</div>
+          <p className="muted" style={{ fontSize: '.82rem', marginTop: -6, marginBottom: 10 }}>
+            Add plant growth timelapse series from CyVerse. Each frame is available for individual analysis with marker detection and calibration measurements.
+          </p>
+          <div className="row wrap" style={{ gap: 8, alignItems: 'flex-end' }}>
+            <div className="field" style={{ flex: '1 1 320px', marginBottom: 0 }}><label>Catalog URL</label>
+              <input className="input" placeholder="https://raw.githubusercontent.com/dr-richard-barker/timelapse-image-series/main/catalog.json"
+                value={cvUrl} onChange={e => setCvUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCyVerseSeries()} />
+            </div>
+            <button className="btn btn-primary" disabled={cvBusy || !cvUrl.trim()} onClick={addCyVerseSeries}>
+              {cvBusy ? <Loader2 className="spin" size={16} /> : <Plus size={16} />} Add series
+            </button>
+          </div>
+          {cvMsg && <div style={{ marginTop: 8, fontSize: '.82rem', color: cvMsg.ok ? 'var(--ok)' : 'var(--danger)' }}>{cvMsg.text}</div>}
+          <p className="muted" style={{ fontSize: '.74rem', marginTop: 8 }}>Fetches a catalog.json with timelapse series metadata. Each series becomes a separate project with all frames plus video playback.</p>
         </div>
 
         {/* sources table */}
