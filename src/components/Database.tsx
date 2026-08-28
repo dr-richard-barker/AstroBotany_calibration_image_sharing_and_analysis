@@ -22,7 +22,7 @@ interface Props {
   onDeleteUpload?: (e: Ec5Entry) => void; // delete a shared cloud upload
 }
 
-type Filter = 'all' | 'withPhoto' | 'analyzed';
+type Filter = 'all' | 'withPhoto' | 'analyzed' | 'withVideo';
 
 // Genotype/line of an entry, if its metadata carries one (from a sidecar column
 // named genotype/ecotype/cultivar/line). Generic — projects without such a field
@@ -98,6 +98,7 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
       if (disabledTreat.size > 0 && (!t || disabledTreat.has(t))) return false;
       if (filter === 'withPhoto' && !e.photoUrl) return false;
       if (filter === 'analyzed' && !e.marker?.markerFound) return false;
+      if (filter === 'withVideo' && !e.videoUrl) return false;
       if (!q) return true;
       return [e.title, e.species, ...e.fields.map(f => f.value)].filter(Boolean).join(' ').toLowerCase().includes(q);
     });
@@ -106,6 +107,7 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
   const selected = filtered.find(e => e.uuid === selectedId) || null;
   const withPhoto = entries.filter(e => e.photoUrl).length;
   const analyzed = entries.filter(e => e.marker?.markerFound).length;
+  const withVideo = entries.filter(e => e.videoUrl).length;
 
   const toggleProject = (slug: string) =>
     setDisabled(prev => { const n = new Set(prev); n.has(slug) ? n.delete(slug) : n.add(slug); return n; });
@@ -126,6 +128,7 @@ export const Database: React.FC<Props> = ({ entries, query, loading, hasNext, sh
         <div className="row wrap" style={{ gap: 6 }}>
           <button className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('all')}><Images /> All ({entries.length})</button>
           <button className={`btn btn-sm ${filter === 'withPhoto' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('withPhoto')}><ImageIcon /> With images ({withPhoto})</button>
+          <button className={`btn btn-sm ${filter === 'withVideo' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('withVideo')}><Film /> With videos ({withVideo})</button>
           <button className={`btn btn-sm ${filter === 'analyzed' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('analyzed')}><CheckCircle2 /> Analyzed ({analyzed})</button>
         </div>
         <div className="row" style={{ gap: 10 }}>
