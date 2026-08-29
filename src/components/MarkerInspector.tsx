@@ -14,7 +14,7 @@ import { VideoPlayer } from './VideoPlayer';
 interface Props {
   entry: Ec5Entry;
   onMarkerChanged: (uuid: string, marker: MarkerAnalysis | null) => void;
-  onOpenTool: (id: string, imageUrl: string, ref: string) => void;
+  onOpenTool: (id: string, imageUrl: string, ref: string, marker?: MarkerAnalysis | null) => void;
   onHide?: () => void;    // admin-only: exclude this image
   onDelete?: () => void;  // delete a shared cloud upload (owner or admin)
   deleteIsOwn?: boolean;  // true if the current user owns this upload
@@ -169,7 +169,7 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
               <Sparkles size={14} /> PlantCV Segmenter
             </button>
             {TOOLS.filter(t => t.launch === 'image').map(t => (
-              <button key={t.id} className="btn btn-sm btn-ghost" onClick={() => onOpenTool(t.id, entry.photoUrl!, ref)} title={`Analyse this image in ${t.name} (in-app)`}>
+              <button key={t.id} className="btn btn-sm btn-ghost" onClick={() => onOpenTool(t.id, entry.photoUrl!, ref, marker)} title={`Analyse this image in ${t.name} (in-app)`}>
                 <t.icon size={14} /> {t.name}
               </button>
             ))}

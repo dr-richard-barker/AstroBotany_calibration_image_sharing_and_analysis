@@ -167,7 +167,7 @@ function AppInner({ auth }: { auth: AuthState }) {
               onClick={() => openTool(t.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openTool(t.id); }}>
               <t.icon size={15} />
               <span>{t.name}<span className="sub">{t.sub}</span></span>
-              <a className="ext" href={toolFrameSrc(t, undefined, undefined, active)} target="_blank" rel="noreferrer" title="Open full-screen" onClick={e => e.stopPropagation()}><ExternalLink size={12} /></a>
+              <a className="ext" href={toolFrameSrc(t, undefined, undefined, undefined, active)} target="_blank" rel="noreferrer" title="Open full-screen" onClick={e => e.stopPropagation()}><ExternalLink size={12} /></a>
             </div>
           ))}
         </div>

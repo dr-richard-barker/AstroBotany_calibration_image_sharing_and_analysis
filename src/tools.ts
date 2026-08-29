@@ -1,4 +1,4 @@
-import { Sprout, FlaskConical, GitBranch, Timer, Brush, type LucideIcon } from 'lucide-react';
+import { Sprout, FlaskConical, GitBranch, Timer, Brush, Microscope, type LucideIcon } from 'lucide-react';
 import { ALL_RSML_INDEX_URL, ASTROROOT_DASHBOARD_URL, rsmlDashboardUrl } from './lib/rsml';
 import { ALL } from './api/epicollect';
 
@@ -15,6 +15,7 @@ import { ALL } from './api/epicollect';
 export interface ToolRef { id: string; name: string; sub: string; url: string; icon: LucideIcon; launch: 'image' | 'rsml' | 'standalone' | 'dataset'; imgParam?: string; }
 
 export const TOOLS: ToolRef[] = [
+  { id: 'fiji', name: 'FIJI Bench', sub: 'ImageJ · SmartRoot · presets', url: 'https://dr-richard-barker.github.io/cose-fiji/', icon: Microscope, launch: 'image', imgParam: 'open' },
   { id: 'cose-cell-segmenter', name: 'CoSE Cell Segmenter', sub: 'Cell segmentation', url: 'https://dr-richard-barker.github.io/cose-cell-segmenter/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
   { id: 'astroroot', name: 'AstroRoot', sub: 'Root tracing', url: 'https://dr-richard-barker.github.io/astroroot/', icon: Sprout, launch: 'image', imgParam: 'image' },
   { id: 'leaf-pigment-size', name: 'Leaf Pigment & Size', sub: 'Pigment · leaf area', url: 'https://dr-richard-barker.github.io/Anthocyanin-Image-analysis/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
@@ -26,7 +27,9 @@ export const toolById = (id: string) => TOOLS.find(t => t.id === id);
 
 // The iframe src for embedding a tool inside the database shell (embed=1 tells
 // the tool to hide its own cross-site CoSE chrome).
-export function toolFrameSrc(t: ToolRef, imageUrl?: string, ref?: string, collection?: string): string {
+// extraParams: optional { scale, unit, preset } for tools that need them (e.g., FIJI bench).
+// collection: the collection selected in this database, for launch: 'dataset' tools.
+export function toolFrameSrc(t: ToolRef, imageUrl?: string, ref?: string, extraParams?: Record<string, string | number>, collection?: string): string {
   if (t.launch === 'rsml') return rsmlDashboardUrl(ALL_RSML_INDEX_URL, true);
   if (t.launch === 'standalone') return `${t.url}?embed=1`;
   if (t.launch === 'dataset') {
@@ -37,6 +40,12 @@ export function toolFrameSrc(t: ToolRef, imageUrl?: string, ref?: string, collec
   const q = new URLSearchParams({ embed: '1' });
   if (imageUrl) q.set(t.imgParam!, imageUrl);
   if (ref) q.set('ref', ref);
+  // Add any extra parameters (scale, unit, preset, etc.)
+  if (extraParams) {
+    for (const [key, value] of Object.entries(extraParams)) {
+      q.set(key, String(value));
+    }
+  }
   return `${t.url}?${q.toString()}`;
 }
 
