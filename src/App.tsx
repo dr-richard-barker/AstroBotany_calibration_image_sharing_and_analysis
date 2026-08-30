@@ -69,7 +69,7 @@ function AppInner({ auth }: { auth: AuthState }) {
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme);
-  const [toolLaunch, setToolLaunch] = useState<{ imageUrl?: string; ref?: string } | null>(null);
+  const [toolLaunch, setToolLaunch] = useState<{ imageUrl?: string; ref?: string; marker?: MarkerAnalysis | null } | null>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -99,9 +99,9 @@ function AppInner({ auth }: { auth: AuthState }) {
   };
   const refreshProjects = () => setProjects(getProjects());
 
-  // Open a sibling tool as an in-app view (optionally pre-loaded with an image).
-  const openTool = (id: string, imageUrl?: string, ref?: string) => {
-    setToolLaunch(imageUrl ? { imageUrl, ref } : null);
+  // Open a sibling tool as an in-app view (optionally pre-loaded with an image + calibration).
+  const openTool = (id: string, imageUrl?: string, ref?: string, marker?: MarkerAnalysis | null) => {
+    setToolLaunch(imageUrl ? { imageUrl, ref, marker } : null);
     setTab(id); setMenuOpen(false);
   };
 
