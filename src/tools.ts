@@ -12,6 +12,7 @@ import { ALL_RSML_INDEX_URL, ASTROROOT_DASHBOARD_URL, rsmlDashboardUrl } from '.
 export interface ToolRef { id: string; name: string; sub: string; url: string; icon: LucideIcon; launch: 'image' | 'rsml' | 'standalone'; imgParam?: string; }
 
 export const TOOLS: ToolRef[] = [
+  { id: 'cose-cell-segmenter', name: 'CoSE Cell Segmenter', sub: 'Cell segmentation', url: 'https://dr-richard-barker.github.io/cose-cell-segmenter/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
   { id: 'astroroot', name: 'AstroRoot', sub: 'Root tracing', url: 'https://dr-richard-barker.github.io/astroroot/', icon: Sprout, launch: 'image', imgParam: 'image' },
   { id: 'leaf-pigment-size', name: 'Leaf Pigment & Size', sub: 'Pigment · leaf area', url: 'https://dr-richard-barker.github.io/Anthocyanin-Image-analysis/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
   { id: 'root-traces', name: 'Root Traces', sub: 'RSML viewer', url: ASTROROOT_DASHBOARD_URL, icon: GitBranch, launch: 'rsml' },
