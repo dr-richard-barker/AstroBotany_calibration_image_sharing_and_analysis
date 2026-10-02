@@ -1,4 +1,4 @@
-import { Sprout, FlaskConical, GitBranch, Timer, Brush, Microscope, type LucideIcon } from 'lucide-react';
+import { Sprout, FlaskConical, GitBranch, Timer, Brush, Microscope, Film, type LucideIcon } from 'lucide-react';
 import { ALL_RSML_INDEX_URL, ASTROROOT_DASHBOARD_URL, rsmlDashboardUrl } from './lib/rsml';
 import { ALL } from './api/epicollect';
 
@@ -19,6 +19,9 @@ export interface ToolRef { id: string; name: string; sub: string; url: string; i
 export const TOOLS: ToolRef[] = [
   { id: 'fiji', name: 'FIJI Bench', sub: 'ImageJ · SmartRoot · presets', url: 'https://dr-richard-barker.github.io/cose-fiji/', icon: Microscope, launch: 'image', imgParam: 'open' },
   { id: 'cose-cell-segmenter', name: 'CoSE Cell Segmenter', sub: 'Desktop app · napari + Cellpose', url: 'https://github.com/dr-richard-barker/cose-cell-segmenter#readme', icon: FlaskConical, launch: 'external' },
+  // Meroz Lab's SAM2-based tracker for plant time-series (Apache-2.0). Runs locally in Docker
+  // (localhost:7262, NVIDIA GPU; CPU mode is experimental) — no hosted version to embed.
+  { id: 'segment-any-plant', name: 'Segment Any Plant (SAP)', sub: 'Desktop · SAM2 time-series tracking', url: 'https://github.com/merozlab/plant-segmentation-app#readme', icon: Film, launch: 'external' },
   { id: 'astroroot', name: 'AstroRoot', sub: 'Root tracing', url: 'https://dr-richard-barker.github.io/astroroot/', icon: Sprout, launch: 'image', imgParam: 'image' },
   { id: 'leaf-pigment-size', name: 'Leaf Pigment & Size', sub: 'Pigment · leaf area', url: 'https://dr-richard-barker.github.io/Anthocyanin-Image-analysis/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
   { id: 'root-traces', name: 'Root Traces', sub: 'RSML viewer', url: ASTROROOT_DASHBOARD_URL, icon: GitBranch, launch: 'rsml' },
