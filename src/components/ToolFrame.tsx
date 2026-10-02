@@ -5,11 +5,12 @@ import { type ToolRef, toolFrameSrc } from '../tools';
 interface Props {
   tool: ToolRef;
   launch: { imageUrl?: string; ref?: string } | null;
+  collection?: string;   // the database's selected collection, for launch: 'dataset' tools
 }
 
 // Embeds a sibling CoSE tool inside the database shell via a same-origin iframe.
-export const ToolFrame: React.FC<Props> = ({ tool, launch }) => {
-  const src = toolFrameSrc(tool, launch?.imageUrl, launch?.ref);
+export const ToolFrame: React.FC<Props> = ({ tool, launch, collection }) => {
+  const src = toolFrameSrc(tool, launch?.imageUrl, launch?.ref, collection);
   const imageName = launch?.imageUrl ? (decodeURIComponent(launch.imageUrl).split('/').pop() || '').split('?')[0] : null;
 
   return (

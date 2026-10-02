@@ -167,7 +167,7 @@ function AppInner({ auth }: { auth: AuthState }) {
               onClick={() => openTool(t.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openTool(t.id); }}>
               <t.icon size={15} />
               <span>{t.name}<span className="sub">{t.sub}</span></span>
-              <a className="ext" href={toolFrameSrc(t)} target="_blank" rel="noreferrer" title="Open full-screen" onClick={e => e.stopPropagation()}><ExternalLink size={12} /></a>
+              <a className="ext" href={toolFrameSrc(t, undefined, undefined, active)} target="_blank" rel="noreferrer" title="Open full-screen" onClick={e => e.stopPropagation()}><ExternalLink size={12} /></a>
             </div>
           ))}
         </div>
@@ -203,7 +203,7 @@ function AppInner({ auth }: { auth: AuthState }) {
         </header>
 
         <main className="content" style={activeTool ? { padding: 0 } : undefined}>
-          {activeTool && <ToolFrame tool={activeTool} launch={toolLaunch} />}
+          {activeTool && <ToolFrame tool={activeTool} launch={toolLaunch} collection={active} />}
           {!activeTool && <>
           {isDemoProject(active) && tab === 'database' && (
             <div className="card pad" style={{ marginBottom: 14, borderColor: 'var(--accent)', display: 'flex', gap: 10, alignItems: 'center' }}>

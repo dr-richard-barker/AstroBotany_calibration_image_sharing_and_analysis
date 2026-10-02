@@ -1,15 +1,18 @@
-import { Sprout, FlaskConical, GitBranch, Timer, type LucideIcon } from 'lucide-react';
+import { Sprout, FlaskConical, GitBranch, Timer, Brush, type LucideIcon } from 'lucide-react';
 import { ALL_RSML_INDEX_URL, ASTROROOT_DASHBOARD_URL, rsmlDashboardUrl } from './lib/rsml';
+import { ALL } from './api/epicollect';
 
 // Sibling CoSE image-analysis tools. `launch: 'image'` tools read `imgParam` to
 // auto-load an image passed from this database; `launch: 'rsml'` tools instead
 // load the combined RSML root-trace manifest (no per-image launch); `launch:
 // 'standalone'` tools take no per-entry handoff at all — they just open
 // embedded, for the user to feed their own input (e.g. a whole time-lapse
-// series a single database entry can't represent yet). MarkerInspector's
+// series a single database entry can't represent yet); `launch: 'dataset'`
+// tools work on a whole collection and are handed the collection currently
+// selected here (`?collection=<slug>`, omitted for "All projects"). MarkerInspector's
 // per-photo "analyse this image in X" buttons only render `launch: 'image'`
-// tools, so 'standalone' tools appear in the sidebar tool list only.
-export interface ToolRef { id: string; name: string; sub: string; url: string; icon: LucideIcon; launch: 'image' | 'rsml' | 'standalone'; imgParam?: string; }
+// tools, so the other kinds appear in the sidebar tool list only.
+export interface ToolRef { id: string; name: string; sub: string; url: string; icon: LucideIcon; launch: 'image' | 'rsml' | 'standalone' | 'dataset'; imgParam?: string; }
 
 export const TOOLS: ToolRef[] = [
   { id: 'cose-cell-segmenter', name: 'CoSE Cell Segmenter', sub: 'Cell segmentation', url: 'https://dr-richard-barker.github.io/cose-cell-segmenter/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
@@ -17,14 +20,20 @@ export const TOOLS: ToolRef[] = [
   { id: 'leaf-pigment-size', name: 'Leaf Pigment & Size', sub: 'Pigment · leaf area', url: 'https://dr-richard-barker.github.io/Anthocyanin-Image-analysis/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
   { id: 'root-traces', name: 'Root Traces', sub: 'RSML viewer', url: ASTROROOT_DASHBOARD_URL, icon: GitBranch, launch: 'rsml' },
   { id: 'germinator-ai', name: 'Germinator AI', sub: 'Seed germination · time-lapse', url: 'https://dr-richard-barker.github.io/germinator-ai/', icon: Timer, launch: 'standalone' },
+  { id: 'astroroot-painter', name: 'AstroRoot Painter', sub: 'Train a root model · RootPainter', url: 'https://dr-richard-barker.github.io/astroroot-painter/', icon: Brush, launch: 'dataset' },
 ];
 export const toolById = (id: string) => TOOLS.find(t => t.id === id);
 
 // The iframe src for embedding a tool inside the database shell (embed=1 tells
 // the tool to hide its own cross-site CoSE chrome).
-export function toolFrameSrc(t: ToolRef, imageUrl?: string, ref?: string): string {
+export function toolFrameSrc(t: ToolRef, imageUrl?: string, ref?: string, collection?: string): string {
   if (t.launch === 'rsml') return rsmlDashboardUrl(ALL_RSML_INDEX_URL, true);
   if (t.launch === 'standalone') return `${t.url}?embed=1`;
+  if (t.launch === 'dataset') {
+    const q = new URLSearchParams({ embed: '1' });
+    if (collection && collection !== ALL) q.set('collection', collection);
+    return `${t.url}?${q.toString()}`;
+  }
   const q = new URLSearchParams({ embed: '1' });
   if (imageUrl) q.set(t.imgParam!, imageUrl);
   if (ref) q.set('ref', ref);
