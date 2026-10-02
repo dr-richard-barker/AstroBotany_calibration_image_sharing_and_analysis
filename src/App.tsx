@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Database as DbIcon, UploadCloud, Share2, Info, Search, Menu, X, Sun, Moon, Sprout, AlertTriangle, BarChart3, ExternalLink, Ruler, ClipboardList, BookText, ShieldCheck, LogOut, Library, Table } from 'lucide-react';
-import { TOOLS, toolById, toolFrameSrc } from './tools';
+import { TOOLS, toolById, toolFrameSrc, type ToolRef } from './tools';
 import { rsmlDashboardUrl } from './lib/rsml';
 import type { Ec5Entry, MarkerAnalysis, CollectionStats } from './types';
 import {
@@ -105,6 +105,12 @@ function AppInner({ auth }: { auth: AuthState }) {
     setTab(id); setMenuOpen(false);
   };
 
+  // External tools (desktop apps) can't be embedded — open their page in a new tab.
+  const launchTool = (t: ToolRef) => {
+    if (t.launch === 'external') { window.open(t.url, '_blank', 'noopener'); setMenuOpen(false); return; }
+    openTool(t.id);
+  };
+
   const onMarkerChanged = (uuid: string, marker: MarkerAnalysis | null) =>
     setEntries(prev => prev.map(e => (e.uuid === uuid ? { ...e, marker } : e)));
 
@@ -164,7 +170,7 @@ function AppInner({ auth }: { auth: AuthState }) {
           <div className="rail-tools-h">Analysis tools <Ruler size={11} /></div>
           {TOOLS.map(t => (
             <div key={t.id} className={`tool-link ${tab === t.id ? 'active' : ''}`} role="button" tabIndex={0}
-              onClick={() => openTool(t.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openTool(t.id); }}>
+              onClick={() => launchTool(t)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') launchTool(t); }}>
               <t.icon size={15} />
               <span>{t.name}<span className="sub">{t.sub}</span></span>
               <a className="ext" href={toolFrameSrc(t, undefined, undefined, undefined, active)} target="_blank" rel="noreferrer" title="Open full-screen" onClick={e => e.stopPropagation()}><ExternalLink size={12} /></a>

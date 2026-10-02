@@ -9,14 +9,16 @@ import { ALL } from './api/epicollect';
 // embedded, for the user to feed their own input (e.g. a whole time-lapse
 // series a single database entry can't represent yet); `launch: 'dataset'`
 // tools work on a whole collection and are handed the collection currently
-// selected here (`?collection=<slug>`, omitted for "All projects"). MarkerInspector's
+// selected here (`?collection=<slug>`, omitted for "All projects"); `launch:
+// 'external'` tools can't run in a browser (e.g. a desktop app) — the sidebar opens
+// their page in a new tab instead of embedding it. MarkerInspector's
 // per-photo "analyse this image in X" buttons only render `launch: 'image'`
 // tools, so the other kinds appear in the sidebar tool list only.
-export interface ToolRef { id: string; name: string; sub: string; url: string; icon: LucideIcon; launch: 'image' | 'rsml' | 'standalone' | 'dataset'; imgParam?: string; }
+export interface ToolRef { id: string; name: string; sub: string; url: string; icon: LucideIcon; launch: 'image' | 'rsml' | 'standalone' | 'dataset' | 'external'; imgParam?: string; }
 
 export const TOOLS: ToolRef[] = [
   { id: 'fiji', name: 'FIJI Bench', sub: 'ImageJ · SmartRoot · presets', url: 'https://dr-richard-barker.github.io/cose-fiji/', icon: Microscope, launch: 'image', imgParam: 'open' },
-  { id: 'cose-cell-segmenter', name: 'CoSE Cell Segmenter', sub: 'Cell segmentation', url: 'https://dr-richard-barker.github.io/cose-cell-segmenter/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
+  { id: 'cose-cell-segmenter', name: 'CoSE Cell Segmenter', sub: 'Desktop app · napari + Cellpose', url: 'https://github.com/dr-richard-barker/cose-cell-segmenter#readme', icon: FlaskConical, launch: 'external' },
   { id: 'astroroot', name: 'AstroRoot', sub: 'Root tracing', url: 'https://dr-richard-barker.github.io/astroroot/', icon: Sprout, launch: 'image', imgParam: 'image' },
   { id: 'leaf-pigment-size', name: 'Leaf Pigment & Size', sub: 'Pigment · leaf area', url: 'https://dr-richard-barker.github.io/Anthocyanin-Image-analysis/', icon: FlaskConical, launch: 'image', imgParam: 'image' },
   { id: 'root-traces', name: 'Root Traces', sub: 'RSML viewer', url: ASTROROOT_DASHBOARD_URL, icon: GitBranch, launch: 'rsml' },
@@ -31,6 +33,7 @@ export const toolById = (id: string) => TOOLS.find(t => t.id === id);
 // collection: the collection selected in this database, for launch: 'dataset' tools.
 export function toolFrameSrc(t: ToolRef, imageUrl?: string, ref?: string, extraParams?: Record<string, string | number>, collection?: string): string {
   if (t.launch === 'rsml') return rsmlDashboardUrl(ALL_RSML_INDEX_URL, true);
+  if (t.launch === 'external') return t.url;
   if (t.launch === 'standalone') return `${t.url}?embed=1`;
   if (t.launch === 'dataset') {
     const q = new URLSearchParams({ embed: '1' });
