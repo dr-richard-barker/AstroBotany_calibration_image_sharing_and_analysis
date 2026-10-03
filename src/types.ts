@@ -23,6 +23,8 @@ export interface MarkerAnalysis {
   colorChips: ColorChip[];
   detector: 'geometric' | 'aruco' | 'manual';
   analyzedAt: string;
+  card?: 'v1' | 'v2';        // calibration card; absent on analyses cached before v2 support (= v1)
+  markersVerified?: number;  // corner markers confirmed by ArUco ID (0-4)
 }
 
 // One extra (non-photo) field from the Epicollect5 form, for display.

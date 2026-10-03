@@ -3,13 +3,28 @@
 // MarkerAnalysis stored in the database. All measurement, no AI.
 
 import {
-  detectMarkerCorners, scaleAndRotation, fitFromQuad, orderCorners,
-  ASTRO_CHIPS, MARKER_SPAN_CM, type Pt,
+  detectMarkerCorners, scaleAndRotation, fitFromQuad, orderCorners, classifyCardByAspect,
+  CARDS, MARKER_SPAN_CM, type Pt, type CardVersion,
 } from './colorcalib';
 import type { MarkerAnalysis, MarkerCorners, ColorChip } from '../types';
 
 function to255(rgb01: number[]): [number, number, number] {
   return [Math.round(rgb01[0] * 255), Math.round(rgb01[1] * 255), Math.round(rgb01[2] * 255)];
+}
+
+// Scale + colour for a known card. v1 keeps its fixed 6 px sampling radius; v2
+// samples a patch ~1/4 of the chip edge so it stays inside the chip at any scale.
+function measure(data: Uint8ClampedArray, w: number, h: number, corners: Pt[], card: CardVersion) {
+  const spec = CARDS[card];
+  const { pxPerCm, rotationDeg } = scaleAndRotation(corners, spec.spanCm);
+  const radius = spec.chipCm ? Math.max(2, Math.min(25, Math.round(pxPerCm * spec.chipCm * 0.25))) : 6;
+  const fit = fitFromQuad(data, w, h, corners, spec.chips, radius);
+  const colorChips: ColorChip[] = spec.chips.map((chip, i) => ({
+    name: chip.name,
+    measured: to255(fit.source[i]),
+    standard: to255(chip.std),
+  }));
+  return { pxPerCm, rotationDeg, fit, colorChips };
 }
 
 // Detect the calibration marker in an ImageData and derive scale + colour metrics.
@@ -20,7 +35,7 @@ export async function analyzeMarker(
   const now = new Date().toISOString();
   const { data, width: w, height: h } = img;
 
-  const { corners, found } = await detectMarkerCorners(data, w, h, opts);
+  const { corners, found, verified, card: detectedCard } = await detectMarkerCorners(data, w, h, opts);
   if (!corners) {
     return {
       markerFound: false, cornersFound: found, corners: null,
@@ -30,17 +45,14 @@ export async function analyzeMarker(
     };
   }
 
-  const { pxPerCm, rotationDeg } = scaleAndRotation(corners, MARKER_SPAN_CM);
-  const fit = fitFromQuad(data, w, h, corners);
-  const colorChips: ColorChip[] = ASTRO_CHIPS.map((chip, i) => ({
-    name: chip.name,
-    measured: to255(fit.source[i]),
-    standard: to255(chip.std),
-  }));
+  const card = detectedCard ?? 'v1';
+  const { pxPerCm, rotationDeg, fit, colorChips } = measure(data, w, h, corners, card);
 
   return {
     markerFound: true,
     cornersFound: found,
+    card,
+    markersVerified: verified ?? 0,
     corners: cornersToTuple(corners),
     pxPerCm: round(pxPerCm, 2),
     pxPerMm: round(pxPerCm / 10, 3),
@@ -53,18 +65,15 @@ export async function analyzeMarker(
 }
 
 // Recompute scale/colour from a user-adjusted 4-corner quad (manual annotation).
-export function analyzeFromQuad(img: ImageData, quad: MarkerCorners): MarkerAnalysis {
+// `card` is the card from an earlier detection; without one it is guessed from
+// the quad's aspect ratio.
+export function analyzeFromQuad(img: ImageData, quad: MarkerCorners, card?: CardVersion): MarkerAnalysis {
   const now = new Date().toISOString();
   const ordered = orderCorners(quad.map(p => ({ x: p.x, y: p.y })));
-  const { pxPerCm, rotationDeg } = scaleAndRotation(ordered, MARKER_SPAN_CM);
-  const fit = fitFromQuad(img.data, img.width, img.height, ordered);
-  const colorChips: ColorChip[] = ASTRO_CHIPS.map((chip, i) => ({
-    name: chip.name,
-    measured: to255(fit.source[i]),
-    standard: to255(chip.std),
-  }));
+  const c = card ?? classifyCardByAspect(ordered);
+  const { pxPerCm, rotationDeg, fit, colorChips } = measure(img.data, img.width, img.height, ordered, c);
   return {
-    markerFound: true, cornersFound: 4, corners: cornersToTuple(ordered),
+    markerFound: true, cornersFound: 4, card: c, markersVerified: 0, corners: cornersToTuple(ordered),
     pxPerCm: round(pxPerCm, 2), pxPerMm: round(pxPerCm / 10, 3), rotationDeg: round(rotationDeg, 2),
     colorResidualRms: round(fit.residual, 4), colorChips, detector: 'manual', analyzedAt: now,
   };
