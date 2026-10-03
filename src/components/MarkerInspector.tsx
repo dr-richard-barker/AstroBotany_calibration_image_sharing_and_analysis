@@ -3,6 +3,7 @@ import { Crosshair, Scale, RotateCw, Sparkles, Save, Edit3, Loader2, Eraser, Map
 import type { Ec5Entry, MarkerAnalysis, Pt } from '../types';
 import { urlToImageData } from '../lib/capture';
 import { analyzeMarker, analyzeFromQuad } from '../lib/detect';
+import { CARDS } from '../lib/colorcalib';
 import { saveMarker, clearMarker } from '../api/epicollect';
 import { getResults, type AnalysisResult } from '../lib/cose-results';
 import { TOOLS } from '../tools';
@@ -77,7 +78,7 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
   const recomputeFromQuad = () => {
     if (!imgData) return;
     const px = quad.map(p => ({ x: p.x * dims.current.w, y: p.y * dims.current.h })) as [Pt, Pt, Pt, Pt];
-    setMarker(analyzeFromQuad(imgData, px)); setDirty(true);
+    setMarker(analyzeFromQuad(imgData, px, marker?.card)); setDirty(true);
   };
 
   const save = () => {
@@ -188,7 +189,7 @@ export const MarkerInspector: React.FC<Props> = ({ entry, onMarkerChanged, onOpe
               <div className="stat"><div className="k">Corners</div><div className="v teal">{marker.cornersFound}/4</div></div>
               <div className="stat"><div className="k">Colour residual</div><div className="v">{marker.colorResidualRms?.toFixed(3)}</div></div>
             </div>
-            <div className="muted" style={{ fontSize: '.78rem', marginBottom: 8 }}>Detector: <span className="mono">{marker.detector}</span> · 15-chip Astrobotany reference (measured vs. standard) · cached in your browser</div>
+            <div className="muted" style={{ fontSize: '.78rem', marginBottom: 8 }}>Card: <span className="mono">{CARDS[marker.card ?? 'v1'].label}</span>{marker.markersVerified ? <> · {marker.markersVerified}/4 corner IDs verified</> : null} · Detector: <span className="mono">{marker.detector}</span> · {marker.colorChips.length}-chip reference (measured vs. standard) · cached in your browser</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(84px,1fr))', gap: 8 }}>
               {marker.colorChips.map((c, i) => (
                 <div key={i} className="mono" style={{ fontSize: '.66rem', textAlign: 'center' }}>
